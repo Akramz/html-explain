@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How html-explain works</title>
+<style>
+:root {
+  --ink: #1d1d1f; --mute: #6e6e73; --line: #d2d2d7; --bg: #f5f5f7; --card: #fff;
+  --core: #fff6e0; --coreline: #e0a800; --part: #c98a00; --uses: #0a66c2; --usedby: #8e44ad;
+  --flag: #e5534b; --new: #1f7a52; --agent: #0a66c2;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: var(--ink); background: var(--bg); }
+code { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; background: #0000000d; padding: 0 3px; border-radius: 3px; }
+header { padding: 16px 24px 8px; display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+h1 { font-size: 20px; margin: 0; }
+.sub { color: var(--mute); }
+.legend { display: flex; gap: 14px; color: var(--mute); font-size: 12px; align-items: center; flex-wrap: wrap; }
+.sw { display: inline-block; width: 14px; height: 14px; border-radius: 3px; vertical-align: -2px; margin-right: 4px; border: 1px solid var(--line); }
+.switch { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--card); }
+.switch button { border: 0; background: none; padding: 5px 14px; font: inherit; cursor: pointer; color: var(--mute); }
+.switch button.on { background: var(--ink); color: #fff; }
+.wrap { display: flex; gap: 16px; padding: 8px 24px 80px; align-items: flex-start; }
+#board { position: relative; flex: 1; display: grid; gap: 14px; grid-template-columns: repeat(12, 1fr); }
+#wires { position: absolute; inset: 0; overflow: visible; z-index: 5; pointer-events: none; }
+#wires path.hit { pointer-events: stroke; cursor: pointer; }
+.zone { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px 12px; }
+.zone h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--mute); margin: 0 0 8px; font-weight: 600; }
+.zone .why { font-size: 12px; color: var(--mute); margin: -4px 0 8px; }
+.zone.core { background: var(--core); border: 2px solid var(--coreline); }
+.zone.core h2, .zone.core .cols h3, .zone.core .flowline { color: #8a5d00; }
+.zone.outside { border: 1px dashed var(--new); background: #f7fcf9; }
+.nodes { display: flex; flex-wrap: wrap; gap: 8px; }
+.cols { display: grid; gap: 10px 22px; align-items: start; }
+.col { display: flex; flex-direction: column; gap: 8px; position: relative; }
+.col h3 { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--mute); }
+.col .arrow { position: absolute; right: -19px; top: 50%; color: var(--coreline); font-size: 18px; font-weight: 700; }
+.flowline { text-align: center; color: var(--mute); font-size: 12px; border-top: 2px dashed var(--coreline); padding-top: 4px; margin-top: 10px; }
+.node { position: relative; z-index: 6; cursor: pointer; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; min-width: 112px; transition: opacity .15s, box-shadow .15s; }
+.node:hover { box-shadow: 0 1px 6px rgba(0,0,0,.12); }
+.node .t { font-weight: 600; font-size: 13px; }
+.node .f { font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--mute); display: flex; justify-content: space-between; gap: 8px; }
+.node.flag { padding-right: 18px; }
+.node.flag::after { content: ""; position: absolute; top: 5px; right: 5px; width: 7px; height: 7px; border-radius: 50%; background: var(--flag); }
+.node .talk { position: absolute; bottom: -7px; right: -7px; background: var(--agent); color: #fff; font-size: 10px; font-weight: 700; border-radius: 9px; padding: 0 5px; line-height: 16px; }
+.node .talk.pending { background: var(--flag); }
+.node.part { background: var(--part); border-color: var(--part); color: #fff; }
+.node.part .f { color: #fff3d6; }
+.node.step { border: 2px solid var(--coreline); }
+.node.chg { border-left: 4px solid var(--uses); }
+.node.gone { background: #fdecea; border: 1px dashed var(--flag); color: #b42318; }
+.node.gone .t { text-decoration: line-through; }
+.node.gone .f { color: #b42318; }
+.node.new { border: 1px dashed var(--new); background: #eef8f2; }
+#board.focus .node { opacity: .25; }
+#board.focus .node.sel, #board.focus .node.rel-u, #board.focus .node.rel-b { opacity: 1; }
+.node.sel { box-shadow: 0 0 0 3px var(--ink); }
+.node.rel-u { box-shadow: 0 0 0 2px var(--uses); }
+.node.rel-b { box-shadow: 0 0 0 2px var(--usedby); }
+.after-only { display: none; }
+body.after .after-only { display: revert; }
+body.after .before-only { display: none; }
+aside { width: 360px; position: sticky; top: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; max-height: calc(100vh - 24px); overflow: auto; }
+aside h2 { margin: 0 0 2px; font-size: 18px; }
+aside .file { font: 12px ui-monospace, Menlo, monospace; color: var(--mute); margin-bottom: 10px; }
+aside p { margin: 0 0 10px; }
+aside h4 { margin: 14px 0 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--mute); }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip { font-size: 12px; padding: 2px 7px; border-radius: 10px; cursor: pointer; border: 1px solid var(--line); background: none; font-family: inherit; }
+.chip.u { color: var(--uses); border-color: var(--uses); }
+.chip.b { color: var(--usedby); border-color: var(--usedby); }
+.notice { background: #fdecea; border-left: 3px solid var(--flag); padding: 6px 8px; border-radius: 4px; font-size: 13px; }
+.change { background: #eaf2fb; border-left: 3px solid var(--uses); padding: 6px 8px; border-radius: 4px; font-size: 13px; }
+.tag { display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 8px; background: var(--bg); color: var(--mute); margin-bottom: 8px; }
+.empty { color: var(--mute); }
+.msg { border-radius: 8px; padding: 6px 9px; margin: 6px 0; font-size: 13px; white-space: pre-wrap; }
+.msg .who { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; display: block; margin-bottom: 2px; }
+.msg.user { background: var(--bg); }
+.msg.agent { background: #eaf2fb; }
+.msg.agent .who { color: var(--agent); }
+.msg.pending { background: #fff; border: 1px dashed var(--flag); }
+.msg.pending .who { color: var(--flag); }
+.msg .x { float: right; border: 0; background: none; cursor: pointer; color: var(--mute); font-size: 13px; }
+textarea.note { width: 100%; min-height: 64px; font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; resize: vertical; }
+.btn { border: 1px solid var(--line); background: var(--card); border-radius: 7px; padding: 5px 12px; font: inherit; cursor: pointer; }
+.btn.primary { background: var(--ink); color: #fff; border-color: var(--ink); }
+.notes-list { margin: 0; padding-left: 20px; }
+.notes-list li { margin-bottom: 10px; }
+.notes-list .q { font-weight: 600; }
+#bar { position: fixed; right: 20px; bottom: 18px; z-index: 20; display: flex; gap: 8px; }
+#sheet { position: fixed; inset: 0; background: #0006; z-index: 30; display: none; align-items: center; justify-content: center; }
+#sheet.on { display: flex; }
+#sheet .box { background: var(--card); border-radius: 12px; width: min(760px, 92vw); max-height: 84vh; display: flex; flex-direction: column; padding: 16px; gap: 10px; }
+#sheet pre { margin: 0; overflow: auto; background: var(--bg); padding: 10px; border-radius: 8px; font: 12px ui-monospace, Menlo, monospace; white-space: pre-wrap; flex: 1; }
+#toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 6px 14px; border-radius: 8px; display: none; z-index: 40; }
+</style>
+</head>
+<body>
+<script type="application/json" id="spec">{"id":"html-explain","title":"How html-explain works","subtitle":"the plugin itself · round 1","summary":"An agent studies a system and writes a spec: boxes in zones and arrows between them. A build step turns the spec into this page. You leave notes on boxes and arrows, copy them back, and the agent answers them in place and draws an After view.","round":1,"zones":[{"id":"you","title":"You","why":"Where a session starts and where notes come from.","span":4},{"id":"skill","title":"The skill","why":"What the agent reads before it writes anything.","span":8},{"id":"loop","title":"The review loop","style":"core","arrows":true,"columns":[{"title":"1 · Explore","nodes":["explore"]},{"title":"2 · Write","nodes":["spec","after"]},{"title":"3 · Build","nodes":["build","check"]},{"title":"4 · Read","nodes":["page","notes"]}],"flow":"↺ your notes come back as answers in place and changes in the After view"},{"id":"runtime","title":"Page runtime","why":"The JavaScript inside every built page.","span":8},{"id":"out","title":"Outputs","why":"What stays in your project.","span":4},{"id":"later","title":"After only","style":"outside","after_only":true,"why":"Proposed in round 1."}],"nodes":[{"id":"user","title":"You","zone":"you","kind":"part","desc":"Run `/html-explain \u003cwhat to explain>`: a whole repo, a module, or a question like \"how does auth work\"."},{"id":"skillmd","title":"SKILL.md","file":"skills/html-explain/SKILL.md","zone":"skill","desc":"The steps the agent follows: explore, write the spec, build, then answer notes round by round."},{"id":"specref","title":"Spec reference","file":"references/spec.md","zone":"skill","desc":"Every field of the spec with an example: zones, boxes, arrows, the After view, threads."},{"id":"example","title":"Example spec","file":"examples/html-explain.json","zone":"skill","desc":"This page's own spec, to copy from."},{"id":"explore","title":"Explore","zone":"loop","kind":"step","desc":"The agent reads the code the focus points at: modules, sizes, what calls what, and why things are the way they are."},{"id":"spec","title":"Spec","file":"\u003cname>.json","zone":"loop","kind":"step","desc":"The source of the page: zones, boxes with short plain descriptions, arrows, and red-dot notes on what may not fit a simple design."},{"id":"after","title":"After view","file":"spec.after","zone":"loop","desc":"The proposed system: boxes that change, go or appear, and a list of your notes with where each one lands."},{"id":"build","title":"Build","file":"runtime/build.mjs","zone":"loop","kind":"step","desc":"Checks the spec and writes one HTML file with the runtime and the spec inside it. No network, no dependencies."},{"id":"check","title":"Spec check","file":"build.mjs --check","zone":"loop","desc":"Unknown zones, nodes, arrows and thread keys stop the build with a message."},{"id":"page","title":"The page","file":"\u003cname>.html","zone":"loop","kind":"step","desc":"What you read: click a box or an arrow to see what it does and what it connects to."},{"id":"notes","title":"Notes","zone":"loop","desc":"Each box, arrow and the page itself takes notes. They stay in your browser until you copy them with Notes for the agent."},{"id":"render","title":"Render","file":"runtime/explain.js","zone":"runtime","desc":"Lays out zones and boxes, and draws the arrows of the selected box.","note":"Finding one box on a large page means scanning every zone by eye."},{"id":"panel","title":"Side panel","file":"runtime/explain.js","zone":"runtime","desc":"Shows the selected box or arrow: its description, what changes, its arrows, and its conversation."},{"id":"store","title":"Note store","file":"localStorage","zone":"runtime","desc":"Unsent notes, kept per page. A note the agent filed in the spec's threads disappears from it."},{"id":"html","title":"Page file","file":"\u003cname>.html","zone":"out","desc":"One file you can open, share or commit."},{"id":"json","title":"Spec file","file":"\u003cname>.json","zone":"out","desc":"The source; the agent edits it each round."}],"edges":[{"from":"user","to":"skillmd","label":"/html-explain"},{"from":"skillmd","to":"explore"},{"from":"explore","to":"spec"},{"from":"spec","to":"build"},{"from":"after","to":"build"},{"from":"build","to":"check"},{"from":"build","to":"page"},{"from":"page","to":"notes"},{"from":"notes","to":"user","label":"copy to the agent"},{"from":"page","to":"render"},{"from":"page","to":"panel"},{"from":"notes","to":"store"},{"from":"build","to":"html"},{"from":"spec","to":"json"},{"from":"specref","to":"spec"},{"from":"example","to":"spec"}],"after":{"label":"After","summary":"Round 1 adds a search box: type a name and the page selects the box.","nodes":{"render":{"status":"changed","change":"Selects the box a search names.","note":null}},"add":[{"id":"search","title":"Search box","file":"runtime/explain.js","zone":"later","desc":"Type part of a box's name or file; the first match is selected and its arrows drawn."}],"edges":{"add":[{"from":"search","to":"render","label":"selects"}]},"notes":[{"q":"How do I find one box on a big page?","a":"Today by eye. The After view adds a search box.","ids":["render","search"]}]},"threads":{"node:render":[{"id":"n1a2b3","by":"user","view":"before","text":"How do I find one box on a big page?"},{"by":"agent","text":"Today you scan the zones by eye. The After view adds a search box that selects the first box whose name or file matches."}]}}</script>
+<script>
+(() => {
+  const S = JSON.parse(document.getElementById("spec").textContent);
+  const KEY = "html-explain:" + S.id;
+  const $ = (q, el = document) => el.querySelector(q);
+  const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  const md = (s) => esc(s).replace(/`([^`]+)`/g, "<code>$1</code>");
+  const threads = S.threads || {};
+  const answered = new Set(Object.values(threads).flat().map((m) => m.id).filter(Boolean));
+
+  // notes the reader wrote and has not sent yet; one the agent filed in `threads` is dropped
+  let pending = [];
+  try { pending = JSON.parse(localStorage.getItem(KEY) || "[]"); } catch {}
+  pending = pending.filter((n) => !answered.has(n.id));
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(pending)); } catch {} };
+  save();
+
+  let mode = "before";
+  let sel = null; // "node:<id>", "edge:<from>><to>" or null
+  let view, els = {};
+
+  const edgeId = (e) => `${e.from}>${e.to}`;
+
+  function build(m) {
+    const nodes = {};
+    for (const n of S.nodes) nodes[n.id] = { ...n };
+    let edges = (S.edges || []).map((e) => ({ ...e }));
+    const zones = (S.zones || []).filter((z) => (m === "after" ? !z.before_only : !z.after_only));
+    if (m === "after" && S.after) {
+      const a = S.after;
+      for (const [id, p] of Object.entries(a.nodes || {})) {
+        if (!nodes[id]) continue;
+        nodes[id] = { ...nodes[id], ...p, status: p.status || "changed" };
+      }
+      for (const n of a.add || []) nodes[n.id] = { ...n, status: "new" };
+      const gone = new Set(Object.keys(nodes).filter((id) => nodes[id].status === "removed"));
+      const drop = new Set((a.edges && a.edges.remove) || []);
+      edges = edges.filter((e) => !drop.has(edgeId(e)) && !gone.has(e.from) && !gone.has(e.to));
+      edges = edges.concat(((a.edges && a.edges.add) || []).map((e) => ({ ...e })));
+      for (const id of gone) nodes[id].note = null;
+    }
+    for (const n of Object.values(nodes)) { n.out = []; n.in = []; }
+    for (const e of edges) {
+      if (nodes[e.from] && nodes[e.to]) { nodes[e.from].out.push(e); nodes[e.to].in.push(e); }
+    }
+    return { nodes, edges, zones };
+  }
+
+  const talk = (key) => (threads[key] || []).length + pending.filter((n) => n.el === key).length;
+
+  function nodeEl(n) {
+    const el = document.createElement("div");
+    const cls = { changed: " chg", removed: " gone", new: " new" }[n.status] || "";
+    el.className = "node" + (n.kind ? " " + n.kind : "") + (n.note ? " flag" : "") + cls;
+    const size = n.status === "removed" ? "removed" : n.status === "changed" ? "edited" : (n.size ?? "");
+    el.innerHTML = `<div class="t">${esc(n.title)}</div><div class="f"><span>${esc(n.file || "")}</span><span>${esc(size)}</span></div>`;
+    const k = talk("node:" + n.id);
+    if (k) {
+      const mine = pending.some((p) => p.el === "node:" + n.id);
+      el.insertAdjacentHTML("beforeend", `<span class="talk${mine ? " pending" : ""}">${k}</span>`);
+    }
+    el.onclick = (e) => { e.stopPropagation(); select("node:" + n.id); };
+    els[n.id] = el;
+    return el;
+  }
+
+  function render() {
+    document.body.classList.toggle("after", mode === "after");
+    document.querySelectorAll(".switch button").forEach((b) => b.classList.toggle("on", b.dataset.mode === mode));
+    view = build(mode);
+    els = {};
+    const board = $("#board");
+    board.querySelectorAll(".zone").forEach((z) => z.remove());
+    const placed = new Set();
+    for (const z of view.zones) {
+      const sec = document.createElement("section");
+      sec.className = "zone" + (z.style ? " " + z.style : "");
+      sec.style.gridColumn = `span ${z.span || 12}`;
+      sec.innerHTML = `<h2>${esc(z.title)}</h2>${z.why ? `<div class="why">${md(z.why)}</div>` : ""}`;
+      if (z.columns) {
+        const cols = document.createElement("div");
+        cols.className = "cols";
+        cols.style.gridTemplateColumns = `repeat(${z.columns.length}, 1fr)`;
+        z.columns.forEach((c, i) => {
+          const col = document.createElement("div");
+          col.className = "col";
+          col.innerHTML = c.title ? `<h3>${esc(c.title)}</h3>` : "";
+          for (const id of c.nodes || []) {
+            if (view.nodes[id]) { col.append(nodeEl(view.nodes[id])); placed.add(id); }
+          }
+          if (z.arrows && i < z.columns.length - 1) col.insertAdjacentHTML("beforeend", `<span class="arrow">→</span>`);
+          cols.append(col);
+        });
+        sec.append(cols);
+      }
+      const rest = Object.values(view.nodes).filter((n) => n.zone === z.id && !placed.has(n.id));
+      if (rest.length) {
+        const box = document.createElement("div");
+        box.className = "nodes";
+        rest.forEach((n) => { box.append(nodeEl(n)); placed.add(n.id); });
+        sec.append(box);
+      }
+      if (z.flow) sec.insertAdjacentHTML("beforeend", `<div class="flowline">${md(z.flow)}</div>`);
+      board.append(sec);
+    }
+    if (sel && sel.startsWith("node:") && !view.nodes[sel.slice(5)]) sel = null;
+    if (sel && sel.startsWith("edge:") && !view.edges.some((e) => "edge:" + edgeId(e) === sel)) sel = null;
+    select(sel);
+    refreshBar();
+  }
+
+  // ---- wires: edges marked `always`, plus the selected node's edges or the selected edge
+  function center(el) {
+    const b = $("#board").getBoundingClientRect(), r = el.getBoundingClientRect();
+    return [r.left - b.left + r.width / 2, r.top - b.top + r.height / 2];
+  }
+  function draw() {
+    const svg = $("#wires");
+    svg.innerHTML = "";
+    const node = sel && sel.startsWith("node:") ? sel.slice(5) : null;
+    const shown = view.edges.filter((e) => e.always || (node && (e.from === node || e.to === node)) || "edge:" + edgeId(e) === sel);
+    for (const e of shown) {
+      if (!els[e.from] || !els[e.to]) continue;
+      const [x1, y1] = center(els[e.from]), [x2, y2] = center(els[e.to]);
+      const mx = (x1 + x2) / 2, my = (y1 + y2) / 2 - Math.min(60, Math.abs(x2 - x1) / 4);
+      const d = `M${x1},${y1} Q${mx},${my} ${x2},${y2}`;
+      const picked = "edge:" + edgeId(e) === sel;
+      const color = picked ? "#1d1d1f" : node === e.to ? "#8e44ad" : node === e.from ? "#0a66c2" : "#9a9a9a";
+      const ns = "http://www.w3.org/2000/svg";
+      const p = document.createElementNS(ns, "path");
+      p.setAttribute("d", d);
+      p.setAttribute("fill", "none");
+      p.setAttribute("stroke", color);
+      p.setAttribute("stroke-width", picked ? "2.6" : "1.6");
+      if (node === e.to && !picked) p.setAttribute("stroke-dasharray", "4 4");
+      const hit = document.createElementNS(ns, "path");
+      hit.setAttribute("d", d);
+      hit.setAttribute("class", "hit");
+      hit.setAttribute("fill", "none");
+      hit.setAttribute("stroke", "transparent");
+      hit.setAttribute("stroke-width", "12");
+      hit.onclick = (ev) => { ev.stopPropagation(); select("edge:" + edgeId(e)); };
+      const tip = document.createElementNS(ns, "title");
+      tip.textContent = `${view.nodes[e.from].title} → ${view.nodes[e.to].title}${e.label ? ": " + e.label : ""}`;
+      hit.append(tip);
+      svg.append(p, hit);
+      if (e.label && (picked || e.always)) {
+        const t = document.createElementNS(ns, "text");
+        t.setAttribute("x", mx); t.setAttribute("y", (y1 + y2) / 2 - Math.min(30, Math.abs(x2 - x1) / 8) - 4);
+        t.setAttribute("text-anchor", "middle"); t.setAttribute("font-size", "11"); t.setAttribute("fill", color);
+        t.textContent = e.label;
+        svg.append(t);
+      }
+    }
+  }
+
+  // ---- the side panel
+  function chip(id, cls) {
+    const n = view.nodes[id];
+    return n ? `<button class="chip ${cls}" data-key="node:${esc(id)}">${esc(n.title)}</button>` : "";
+  }
+  function edgeChip(e, other, cls) {
+    const k = talk("edge:" + edgeId(e));
+    const lab = view.nodes[other] ? view.nodes[other].title : other;
+    return `<button class="chip ${cls}" data-key="edge:${esc(edgeId(e))}">${esc(lab)}${e.label ? " · " + esc(e.label) : ""}${k ? ` (${k})` : ""}</button>`;
+  }
+  function thread(key) {
+    const msgs = (threads[key] || []).map((m) =>
+      `<div class="msg ${m.by === "agent" ? "agent" : "user"}"><span class="who">${m.by === "agent" ? "Agent" : "You"}${m.view ? " · " + esc(m.view) : ""}</span>${md(m.text)}</div>`);
+    const mine = pending.filter((n) => n.el === key).map((n) =>
+      `<div class="msg pending"><button class="x" data-del="${esc(n.id)}" title="Delete">✕</button><span class="who">You · not sent yet</span>${md(n.text)}</div>`);
+    return `<h4>Notes and questions</h4>${msgs.join("")}${mine.join("")}
+      <textarea class="note" placeholder="A question, a change you want, or a reply…"></textarea>
+      <div style="display:flex;gap:6px;margin-top:6px"><button class="btn primary" data-add="${esc(key)}">Add note</button></div>`;
+  }
+  function panel() {
+    const p = $("#panel");
+    let html;
+    if (!sel) {
+      const a = mode === "after" && S.after;
+      html = `<h2>${esc(a ? a.label || "After" : "Click a box or an arrow")}</h2>
+        <p>${md(a ? a.summary || "" : S.summary || "")}</p>
+        <p class="empty">Click a box or an arrow to read it and leave a note. Notes stay in this browser until you copy them to the agent with <b>Notes for the agent</b>.</p>`;
+      if (a && a.notes && a.notes.length) {
+        html += `<h4>Your notes and where they land</h4><ol class="notes-list">${a.notes.map((x) =>
+          `<li><div class="q">${md(x.q)}</div><div>${md(x.a)}</div><div class="chips">${(x.ids || []).map((id) => chip(id, "")).join("")}</div></li>`).join("")}</ol>`;
+      }
+      html += thread("page");
+    } else if (sel.startsWith("node:")) {
+      const n = view.nodes[sel.slice(5)];
+      const tag = n.status === "removed" ? "removed" : n.status === "new" ? "new" : n.tag;
+      html = `${tag ? `<span class="tag">${esc(tag)}</span>` : ""}<h2>${esc(n.title)}</h2>
+        <div class="file">${esc(n.file || "")}${n.size && mode === "before" ? " · " + esc(n.size) : ""}</div>
+        <p>${md(n.desc)}</p>
+        ${n.change ? `<h4>What changes</h4><p class="change">${md(n.change)}</p>` : ""}
+        ${n.note ? `<h4>Worth a look</h4><p class="notice">${md(n.note)}</p>` : ""}
+        ${n.status === "removed" ? "" : `<h4>Uses</h4>${n.out.length ? `<div class="chips">${n.out.map((e) => edgeChip(e, e.to, "u")).join("")}</div>` : `<div class="empty">none</div>`}
+        <h4>Used by</h4>${n.in.length ? `<div class="chips">${n.in.map((e) => edgeChip(e, e.from, "b")).join("")}</div>` : `<div class="empty">none</div>`}`}
+        ${thread(sel)}`;
+    } else {
+      const e = view.edges.find((x) => "edge:" + edgeId(x) === sel);
+      html = `<span class="tag">arrow</span><h2>${esc(view.nodes[e.from].title)} → ${esc(view.nodes[e.to].title)}</h2>
+        ${e.label ? `<div class="file">${esc(e.label)}</div>` : ""}<p>${md(e.desc || "")}</p>
+        <div class="chips">${chip(e.from, "u")}${chip(e.to, "b")}</div>${thread(sel)}`;
+    }
+    p.innerHTML = html;
+    p.querySelectorAll("[data-key]").forEach((b) => (b.onclick = (ev) => { ev.stopPropagation(); select(b.dataset.key); }));
+    p.querySelectorAll("[data-del]").forEach((b) => (b.onclick = () => { pending = pending.filter((n) => n.id !== b.dataset.del); save(); render(); }));
+    p.querySelectorAll("[data-add]").forEach((b) => (b.onclick = () => {
+      const text = p.querySelector("textarea.note").value.trim();
+      if (!text) return;
+      pending.push({ id: "n" + Math.random().toString(36).slice(2, 7), el: b.dataset.add, view: mode, text });
+      save();
+      render();
+    }));
+  }
+
+  function select(key) {
+    sel = key || null;
+    const board = $("#board");
+    board.classList.toggle("focus", !!sel);
+    Object.values(els).forEach((e) => e.classList.remove("sel", "rel-u", "rel-b"));
+    if (sel && sel.startsWith("node:")) {
+      const n = view.nodes[sel.slice(5)];
+      els[n.id].classList.add("sel");
+      n.out.forEach((e) => els[e.to] && els[e.to].classList.add("rel-u"));
+      n.in.forEach((e) => els[e.from] && els[e.from].classList.add("rel-b"));
+    } else if (sel) {
+      const e = view.edges.find((x) => "edge:" + edgeId(x) === sel);
+      els[e.from].classList.add("rel-u");
+      els[e.to].classList.add("rel-b");
+    }
+    history.replaceState(null, "", "#" + mode + (sel ? "/" + sel : ""));
+    panel();
+    draw();
+  }
+
+  // ---- notes for the agent
+  function label(key) {
+    if (key === "page") return "the whole page";
+    if (key.startsWith("node:")) {
+      const n = build("after").nodes[key.slice(5)] || build("before").nodes[key.slice(5)];
+      return `box \`${key.slice(5)}\` (${n ? n.title : "?"}${n && n.file ? ", " + n.file : ""})`;
+    }
+    return `arrow \`${key.slice(5)}\``;
+  }
+  function exportText() {
+    const by = {};
+    for (const n of pending) (by[n.el] ||= []).push(n);
+    const lines = [`# Notes on "${S.title}" (${S.id}, round ${S.round || 0})`, "",
+      "File each note in `threads` under its key with its id, answer it there, and update `after`.", ""];
+    for (const [key, notes] of Object.entries(by)) {
+      lines.push(`## ${label(key)} · key \`${key}\``);
+      for (const t of threads[key] || []) lines.push(`- earlier, ${t.by === "agent" ? "agent" : "me"}: ${t.text.replace(/\n/g, " ")}`);
+      for (const n of notes) lines.push(`- [${n.id}] (seen in ${n.view}) ${n.text.replace(/\n/g, "\n  ")}`);
+      lines.push("");
+    }
+    return lines.join("\n");
+  }
+  function refreshBar() {
+    $("#notes-btn").textContent = `Notes for the agent (${pending.length})`;
+  }
+  function toast(t) {
+    const el = $("#toast");
+    el.textContent = t;
+    el.style.display = "block";
+    setTimeout(() => (el.style.display = "none"), 1800);
+  }
+
+  function shell() {
+    document.title = S.title;
+    const legend = [
+      ["background:var(--part);border-color:var(--part)", "key part"],
+      ["border:2px solid var(--coreline)", "main step"],
+      ["", "module"],
+      ["background:var(--flag);border-color:var(--flag);border-radius:50%;width:8px;height:8px", "worth a look"],
+    ];
+    const after = [
+      ["border-left:4px solid var(--uses)", "changes"],
+      ["background:#fdecea;border:1px dashed var(--flag)", "removed"],
+      ["background:#eef8f2;border:1px dashed var(--new)", "new"],
+    ];
+    document.body.innerHTML = `
+      <header><h1>${esc(S.title)}</h1>
+        ${S.after ? `<span class="switch"><button data-mode="before">Before</button><button data-mode="after">${esc(S.after.label || "After")}</button></span>` : ""}
+        ${S.subtitle ? `<span class="sub">${md(S.subtitle)}</span>` : ""}
+        <span class="legend">${legend.map(([s, t]) => `<span><span class="sw" style="${s}"></span>${t}</span>`).join("")}
+          ${after.map(([s, t]) => `<span class="after-only"><span class="sw" style="${s}"></span>${t}</span>`).join("")}
+          <span style="color:var(--uses)">━ uses</span><span style="color:var(--usedby)">┅ used by</span></span>
+      </header>
+      <div class="wrap"><div id="board"><svg id="wires"></svg></div><aside id="panel"></aside></div>
+      <div id="bar"><button class="btn primary" id="notes-btn"></button></div>
+      <div id="sheet"><div class="box"><b>Notes for the agent</b>
+        <span class="empty">Copy this and paste it to the agent. It answers each note in place and updates the After view.</span>
+        <pre id="sheet-text"></pre>
+        <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn" id="sheet-close">Close</button><button class="btn primary" id="sheet-copy">Copy</button></div></div></div>
+      <div id="toast"></div>`;
+    document.querySelectorAll(".switch button").forEach((b) => (b.onclick = () => { mode = b.dataset.mode; render(); }));
+    $("#board").onclick = () => select(null);
+    $("#notes-btn").onclick = () => {
+      if (!pending.length) return toast("No notes yet: click a box or an arrow to add one");
+      $("#sheet-text").textContent = exportText();
+      $("#sheet").classList.add("on");
+    };
+    $("#sheet-close").onclick = () => $("#sheet").classList.remove("on");
+    $("#sheet-copy").onclick = async () => {
+      const text = exportText();
+      try { await navigator.clipboard.writeText(text); } catch {
+        const ta = document.createElement("textarea"); ta.value = text; document.body.append(ta); ta.select(); document.execCommand("copy"); ta.remove();
+      }
+      toast("Copied: paste it to the agent");
+    };
+    addEventListener("resize", draw);
+  }
+
+  shell();
+  const [m, ...rest] = location.hash.slice(1).split("/");
+  if (m === "after" && S.after) mode = "after";
+  sel = rest.join("/") || null;
+  render();
+})();
+</script>
+</body>
+</html>

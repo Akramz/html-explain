@@ -1,0 +1,14 @@
+{
+  "name": "html-explain",
+  "description": "The html-explain plugin: explain a system as an interactive diagram you annotate, then redesign it with your agent.",
+  "owner": {
+    "name": "Akram Zaytar",
+    "url": "https://github.com/Akramz"
+  },
+  "plugins": [
+    {
+      "name": "html-explain",
+      "source": "./plugin"
+    }
+  ]
+}

@@ -1,0 +1,314 @@
+{
+ "id": "html-explain",
+ "title": "How html-explain works",
+ "subtitle": "the plugin itself · round 1",
+ "summary": "An agent studies a system and writes a spec: boxes in zones and arrows between them. A build step turns the spec into this page. You leave notes on boxes and arrows, copy them back, and the agent answers them in place and draws an After view.",
+ "round": 1,
+ "zones": [
+  {
+   "id": "you",
+   "title": "You",
+   "why": "Where a session starts and where notes come from.",
+   "span": 4
+  },
+  {
+   "id": "skill",
+   "title": "The skill",
+   "why": "What the agent reads before it writes anything.",
+   "span": 8
+  },
+  {
+   "id": "loop",
+   "title": "The review loop",
+   "style": "core",
+   "arrows": true,
+   "columns": [
+    {
+     "title": "1 · Explore",
+     "nodes": [
+      "explore"
+     ]
+    },
+    {
+     "title": "2 · Write",
+     "nodes": [
+      "spec",
+      "after"
+     ]
+    },
+    {
+     "title": "3 · Build",
+     "nodes": [
+      "build",
+      "check"
+     ]
+    },
+    {
+     "title": "4 · Read",
+     "nodes": [
+      "page",
+      "notes"
+     ]
+    }
+   ],
+   "flow": "↺ your notes come back as answers in place and changes in the After view"
+  },
+  {
+   "id": "runtime",
+   "title": "Page runtime",
+   "why": "The JavaScript inside every built page.",
+   "span": 8
+  },
+  {
+   "id": "out",
+   "title": "Outputs",
+   "why": "What stays in your project.",
+   "span": 4
+  },
+  {
+   "id": "later",
+   "title": "After only",
+   "style": "outside",
+   "after_only": true,
+   "why": "Proposed in round 1."
+  }
+ ],
+ "nodes": [
+  {
+   "id": "user",
+   "title": "You",
+   "zone": "you",
+   "kind": "part",
+   "desc": "Run `/html-explain <what to explain>`: a whole repo, a module, or a question like \"how does auth work\"."
+  },
+  {
+   "id": "skillmd",
+   "title": "SKILL.md",
+   "file": "skills/html-explain/SKILL.md",
+   "zone": "skill",
+   "desc": "The steps the agent follows: explore, write the spec, build, then answer notes round by round."
+  },
+  {
+   "id": "specref",
+   "title": "Spec reference",
+   "file": "references/spec.md",
+   "zone": "skill",
+   "desc": "Every field of the spec with an example: zones, boxes, arrows, the After view, threads."
+  },
+  {
+   "id": "example",
+   "title": "Example spec",
+   "file": "examples/html-explain.json",
+   "zone": "skill",
+   "desc": "This page's own spec, to copy from."
+  },
+  {
+   "id": "explore",
+   "title": "Explore",
+   "zone": "loop",
+   "kind": "step",
+   "desc": "The agent reads the code the focus points at: modules, sizes, what calls what, and why things are the way they are."
+  },
+  {
+   "id": "spec",
+   "title": "Spec",
+   "file": "<name>.json",
+   "zone": "loop",
+   "kind": "step",
+   "desc": "The source of the page: zones, boxes with short plain descriptions, arrows, and red-dot notes on what may not fit a simple design."
+  },
+  {
+   "id": "after",
+   "title": "After view",
+   "file": "spec.after",
+   "zone": "loop",
+   "desc": "The proposed system: boxes that change, go or appear, and a list of your notes with where each one lands."
+  },
+  {
+   "id": "build",
+   "title": "Build",
+   "file": "runtime/build.mjs",
+   "zone": "loop",
+   "kind": "step",
+   "desc": "Checks the spec and writes one HTML file with the runtime and the spec inside it. No network, no dependencies."
+  },
+  {
+   "id": "check",
+   "title": "Spec check",
+   "file": "build.mjs --check",
+   "zone": "loop",
+   "desc": "Unknown zones, nodes, arrows and thread keys stop the build with a message."
+  },
+  {
+   "id": "page",
+   "title": "The page",
+   "file": "<name>.html",
+   "zone": "loop",
+   "kind": "step",
+   "desc": "What you read: click a box or an arrow to see what it does and what it connects to."
+  },
+  {
+   "id": "notes",
+   "title": "Notes",
+   "zone": "loop",
+   "desc": "Each box, arrow and the page itself takes notes. They stay in your browser until you copy them with Notes for the agent."
+  },
+  {
+   "id": "render",
+   "title": "Render",
+   "file": "runtime/explain.js",
+   "zone": "runtime",
+   "desc": "Lays out zones and boxes, and draws the arrows of the selected box.",
+   "note": "Finding one box on a large page means scanning every zone by eye."
+  },
+  {
+   "id": "panel",
+   "title": "Side panel",
+   "file": "runtime/explain.js",
+   "zone": "runtime",
+   "desc": "Shows the selected box or arrow: its description, what changes, its arrows, and its conversation."
+  },
+  {
+   "id": "store",
+   "title": "Note store",
+   "file": "localStorage",
+   "zone": "runtime",
+   "desc": "Unsent notes, kept per page. A note the agent filed in the spec's threads disappears from it."
+  },
+  {
+   "id": "html",
+   "title": "Page file",
+   "file": "<name>.html",
+   "zone": "out",
+   "desc": "One file you can open, share or commit."
+  },
+  {
+   "id": "json",
+   "title": "Spec file",
+   "file": "<name>.json",
+   "zone": "out",
+   "desc": "The source; the agent edits it each round."
+  }
+ ],
+ "edges": [
+  {
+   "from": "user",
+   "to": "skillmd",
+   "label": "/html-explain"
+  },
+  {
+   "from": "skillmd",
+   "to": "explore"
+  },
+  {
+   "from": "explore",
+   "to": "spec"
+  },
+  {
+   "from": "spec",
+   "to": "build"
+  },
+  {
+   "from": "after",
+   "to": "build"
+  },
+  {
+   "from": "build",
+   "to": "check"
+  },
+  {
+   "from": "build",
+   "to": "page"
+  },
+  {
+   "from": "page",
+   "to": "notes"
+  },
+  {
+   "from": "notes",
+   "to": "user",
+   "label": "copy to the agent"
+  },
+  {
+   "from": "page",
+   "to": "render"
+  },
+  {
+   "from": "page",
+   "to": "panel"
+  },
+  {
+   "from": "notes",
+   "to": "store"
+  },
+  {
+   "from": "build",
+   "to": "html"
+  },
+  {
+   "from": "spec",
+   "to": "json"
+  },
+  {
+   "from": "specref",
+   "to": "spec"
+  },
+  {
+   "from": "example",
+   "to": "spec"
+  }
+ ],
+ "after": {
+  "label": "After",
+  "summary": "Round 1 adds a search box: type a name and the page selects the box.",
+  "nodes": {
+   "render": {
+    "status": "changed",
+    "change": "Selects the box a search names.",
+    "note": null
+   }
+  },
+  "add": [
+   {
+    "id": "search",
+    "title": "Search box",
+    "file": "runtime/explain.js",
+    "zone": "later",
+    "desc": "Type part of a box's name or file; the first match is selected and its arrows drawn."
+   }
+  ],
+  "edges": {
+   "add": [
+    {
+     "from": "search",
+     "to": "render",
+     "label": "selects"
+    }
+   ]
+  },
+  "notes": [
+   {
+    "q": "How do I find one box on a big page?",
+    "a": "Today by eye. The After view adds a search box.",
+    "ids": [
+     "render",
+     "search"
+    ]
+   }
+  ]
+ },
+ "threads": {
+  "node:render": [
+   {
+    "id": "n1a2b3",
+    "by": "user",
+    "view": "before",
+    "text": "How do I find one box on a big page?"
+   },
+   {
+    "by": "agent",
+    "text": "Today you scan the zones by eye. The After view adds a search box that selects the first box whose name or file matches."
+   }
+  ]
+ }
+}
