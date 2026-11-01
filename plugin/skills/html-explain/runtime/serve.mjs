@@ -2,7 +2,7 @@
 // Live mode: serve a spec's page and pass notes between the reader and the agent.
 //   node serve.mjs <spec.json> [--port N]   serve the page; each note lands in <name>.inbox.jsonl
 //   node serve.mjs <spec.json> --watch      print one line per new note, for the agent's monitor
-// The page long-polls for a new spec version and offers it behind a reload button. Only the page
+// The page long-polls for a new spec version and redraws itself in place. Only the page
 // this server sent can talk to it: the API needs that page's random token, this server's Host and,
 // from a browser, this server's Origin.
 import { randomBytes } from "node:crypto";

@@ -35,9 +35,8 @@ The page is built by a small Node script, so you need [Node.js](https://nodejs.o
 2. Leave notes on any box or the page. The page is served live from your machine: each
    note reaches the agent as soon as you add it, and it starts working on it.
 3. The agent answers the note in its thread, agrees or pushes back with a reason, and updates
-   the **After** view. **↻ Load the agent's changes** appears; click it to see them in place,
-   without losing what you are typing. Flip Before / After to compare. Keep talking in the
-   threads.
+   the **After** view. The page redraws in place as it saves, without losing what you are
+   typing. Flip Before / After to compare. Keep talking in the threads.
 4. When the After view is what you want, ask the agent to build it.
 
 The spec (`<name>.json`) is the source and the page (`<name>.html`) is one self-contained file

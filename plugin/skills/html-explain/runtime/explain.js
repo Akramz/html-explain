@@ -194,7 +194,7 @@
       html = `<h2>${esc(a ? a.label || "After" : "Click a box")}</h2>
         <p>${md(a ? a.summary || "" : S.summary || "")}</p>
         <p class="empty">${live
-          ? "Click a box to read it, see its arrows and leave a note. The agent sees each note as you add it and answers here; <b>↻ Load the agent's changes</b> shows its answers in place."
+          ? "Click a box to read it, see its arrows and leave a note. The agent sees each note as you add it; its answers and changes appear here as it makes them."
           : "Click a box to read it, see its arrows and leave a note. Notes stay in this browser until you copy them to the agent with <b>Notes for the agent</b>."}</p>`;
       if (a?.notes?.length) {
         html += `<h4>Your notes and where they land</h4><ol class="notes-list">${a.notes.map((x) =>
@@ -307,7 +307,7 @@
   document.body.innerHTML = `
     <header></header>
     <div class="wrap"><div id="board"><svg id="wires"></svg></div><aside id="panel"></aside></div>
-    <div id="bar"><button class="btn" id="reload" title="Load the agent's changes into this page">↻ Load the agent's changes</button><button class="btn primary" id="notes-btn"></button></div>
+    <div id="bar"><button class="btn primary" id="notes-btn"></button></div>
     <dialog id="sheet"><b>Notes for the agent</b>
       <span class="empty">Copy this and paste it to the agent. It answers each note in place and updates the After view.</span>
       <pre id="sheet-text"></pre>
@@ -334,17 +334,9 @@
   sel = rest.join("/") || null;
   render();
 
-  // live mode: the agent's saves wait behind the reload button; a click loads them in place, and
-  // the page itself never reloads, so a half-written note survives
+  // live mode: each save of the agent redraws the page in place; the page itself never reloads,
+  // so the selection, the scroll and a half-written note survive
   if (!live) return;
-  let incoming = null;
-  $("#reload").onclick = () => {
-    if (!incoming) return;
-    absorb(incoming);
-    incoming = null;
-    $("#reload").classList.remove("on");
-    render();
-  };
   (async () => {
     let version = LIVE.version;
     for (;;) {
@@ -353,8 +345,9 @@
       if (r?.status === 200) {
         const d = await r.json();
         version = d.version;
-        incoming = d.spec;
-        $("#reload").classList.add("on");
+        absorb(d.spec);
+        render();
+        toast("Updated by the agent");
       } else if (r?.status === 403) {
         $("#notes-btn").textContent = "The live server restarted: reload this page";
         return;

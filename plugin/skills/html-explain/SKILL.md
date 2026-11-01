@@ -9,9 +9,8 @@ description: Explain a system as one interactive HTML diagram of boxes and arrow
 them, and a short plain description behind every box. The user clicks a box to see it and its
 arrows, and writes notes (questions or changes they want). In live mode each note reaches you the moment it
 is posted: you answer it in place on the page and draw an **After** view of the system with the
-agreed changes; a reload button on the page lets them load your changes in place, without a
-page reload. This repeats until the user is
-satisfied; then, if they ask, you build the After view.
+agreed changes; the page redraws itself in place as you save, without a page reload. This
+repeats until the user is satisfied; then, if they ask, you build the After view.
 
 The focus sets what to draw: a whole repository (the default, with no argument), a package or
 module, or a question such as "how a request reaches the database". Draw what the focus needs,
@@ -73,10 +72,9 @@ not everything you can see.
    `node <skill dir>/runtime/build.mjs <name>.json`, which checks the spec and refreshes the HTML
    file; fix any error at once (the server skips a spec that fails the check). Several notes in
    one event are one batch.
-4. **Let the user pull your changes.** Within a second of your save the page shows
-   **↻ Load the agent's changes**. A click redraws the page in place and keeps whatever the user
-   is typing; nothing reloads on its own. Never ask them to reload the browser. In chat, say one
-   line per batch; the answers live on the page.
+4. **Your changes show at once.** Within a second of a valid save the page redraws in place and
+   keeps the user's view, selection and whatever they are typing. Never ask them to reload the
+   browser. In chat, say one line per batch; the answers live on the page.
 5. **Stop** the monitor and the server (TaskStop) when the user says they are done. The server's
    working files (`<name>.inbox.jsonl`, `<name>.inbox.cursor`) can be deleted then.
 

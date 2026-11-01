@@ -106,10 +106,7 @@ textarea.note { width: 100%; min-height: 64px; font: inherit; padding: 6px 8px; 
 .notes-list { margin: 0; padding-left: 20px; }
 .notes-list li { margin-bottom: 10px; }
 .notes-list .q { font-weight: 600; }
-#bar { position: fixed; right: 20px; bottom: 18px; z-index: 20; display: flex; gap: 8px; }
-#reload { display: none; border-color: var(--agent); color: var(--agent); font-weight: 600; }
-#reload.on { display: inline-block; animation: pulse 1.6s ease-in-out infinite; }
-@keyframes pulse { 50% { box-shadow: 0 0 0 5px #0a66c233; } }
+#bar { position: fixed; right: 20px; bottom: 18px; z-index: 20; }
 #sheet { border: 0; border-radius: 12px; width: min(760px, 92vw); max-height: 84vh; padding: 16px; }
 #sheet[open] { display: flex; flex-direction: column; gap: 10px; }
 #sheet::backdrop { background: #0006; }
@@ -316,7 +313,7 @@ textarea.note { width: 100%; min-height: 64px; font: inherit; padding: 6px 8px; 
       html = `<h2>${esc(a ? a.label || "After" : "Click a box")}</h2>
         <p>${md(a ? a.summary || "" : S.summary || "")}</p>
         <p class="empty">${live
-          ? "Click a box to read it, see its arrows and leave a note. The agent sees each note as you add it and answers here; <b>↻ Load the agent's changes</b> shows its answers in place."
+          ? "Click a box to read it, see its arrows and leave a note. The agent sees each note as you add it; its answers and changes appear here as it makes them."
           : "Click a box to read it, see its arrows and leave a note. Notes stay in this browser until you copy them to the agent with <b>Notes for the agent</b>."}</p>`;
       if (a?.notes?.length) {
         html += `<h4>Your notes and where they land</h4><ol class="notes-list">${a.notes.map((x) =>
@@ -429,7 +426,7 @@ textarea.note { width: 100%; min-height: 64px; font: inherit; padding: 6px 8px; 
   document.body.innerHTML = `
     <header></header>
     <div class="wrap"><div id="board"><svg id="wires"></svg></div><aside id="panel"></aside></div>
-    <div id="bar"><button class="btn" id="reload" title="Load the agent's changes into this page">↻ Load the agent's changes</button><button class="btn primary" id="notes-btn"></button></div>
+    <div id="bar"><button class="btn primary" id="notes-btn"></button></div>
     <dialog id="sheet"><b>Notes for the agent</b>
       <span class="empty">Copy this and paste it to the agent. It answers each note in place and updates the After view.</span>
       <pre id="sheet-text"></pre>
@@ -456,17 +453,9 @@ textarea.note { width: 100%; min-height: 64px; font: inherit; padding: 6px 8px; 
   sel = rest.join("/") || null;
   render();
 
-  // live mode: the agent's saves wait behind the reload button; a click loads them in place, and
-  // the page itself never reloads, so a half-written note survives
+  // live mode: each save of the agent redraws the page in place; the page itself never reloads,
+  // so the selection, the scroll and a half-written note survive
   if (!live) return;
-  let incoming = null;
-  $("#reload").onclick = () => {
-    if (!incoming) return;
-    absorb(incoming);
-    incoming = null;
-    $("#reload").classList.remove("on");
-    render();
-  };
   (async () => {
     let version = LIVE.version;
     for (;;) {
@@ -475,8 +464,9 @@ textarea.note { width: 100%; min-height: 64px; font: inherit; padding: 6px 8px; 
       if (r?.status === 200) {
         const d = await r.json();
         version = d.version;
-        incoming = d.spec;
-        $("#reload").classList.add("on");
+        absorb(d.spec);
+        render();
+        toast("Updated by the agent");
       } else if (r?.status === 403) {
         $("#notes-btn").textContent = "The live server restarted: reload this page";
         return;
