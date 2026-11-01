@@ -60,10 +60,8 @@ not everything you can see.
 ## Live mode
 
 1. **Serve the page.** Start `node <skill dir>/runtime/serve.mjs <name>.json` as a background task
-   (Bash `run_in_background`). Its first line is the URL; `<name>.live.json` holds it too. Open
-   that URL, not the HTML file. The server reads the spec on every request. It answers only the
-   page it served: that page carries a random token, and the server refuses calls without it or
-   from another site.
+   (Bash `run_in_background`). Its first line is the URL; open that URL, not the HTML file. The
+   server answers only the page it served.
 2. **Watch for notes.** Arm a Monitor with the command
    `node <skill dir>/runtime/serve.mjs <name>.json --watch`, a description such as
    "html-explain notes on <name>", and the longest timeout. Each event line is one note:
@@ -73,13 +71,14 @@ not everything you can see.
    review round (below): find out, decide whether the spec needs an edit at all (a question may
    need only an answer), file the note and your answer in `threads`, update `after`. Then run
    `node <skill dir>/runtime/build.mjs <name>.json`, which checks the spec and refreshes the HTML
-   file; fix any error at once. Several notes in one event are one batch.
+   file; fix any error at once (the server skips a spec that fails the check). Several notes in
+   one event are one batch.
 4. **Let the user pull your changes.** Within a second of your save the page shows
    **↻ Load the agent's changes**. A click redraws the page in place and keeps whatever the user
    is typing; nothing reloads on its own. Never ask them to reload the browser. In chat, say one
    line per batch; the answers live on the page.
 5. **Stop** the monitor and the server (TaskStop) when the user says they are done. The server's
-   working files (`<name>.inbox.jsonl`, `.inbox.cursor`, `.live.json`) can be deleted then.
+   working files (`<name>.inbox.jsonl`, `<name>.inbox.cursor`) can be deleted then.
 
 If Node cannot serve (no free port, or the user opens the HTML file directly), the page works
 offline: notes stay in the browser, and **Notes for the agent** copies them as one block for the

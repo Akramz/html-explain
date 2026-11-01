@@ -11,7 +11,7 @@ test("the example spec is valid and builds one self-contained page", () => {
   assert.deepEqual(check(example), []);
   const html = page(example);
   assert.match(html, /<script type="application\/json" id="spec">/);
-  assert.doesNotMatch(html, /<\/script><script src=/);
+  assert.doesNotMatch(html, /id="live"/); // a built file is the offline page
   assert.ok(!html.includes("</script>\"")); // the spec cannot close its own script tag
 });
 

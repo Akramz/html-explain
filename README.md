@@ -1,9 +1,10 @@
 # html-explain
 
 `/html-explain` draws a system as one interactive HTML page: boxes grouped by role, arrows
-between them, and a short plain description behind every box. You click any box or arrow, leave
-notes (questions or changes you want), and copy them back to your agent. It answers each note in
-place on the page and draws an **After** view of the system with the changes you agreed on.
+between them, and a short plain description behind every box. You click any box or arrow and
+leave notes (questions or changes you want); each reaches your agent as you post it. It answers
+each note in place on the page and draws an **After** view of the system with the changes you
+agreed on.
 Rounds repeat until you are happy; then the agent can build the After view.
 
 Use it to understand a codebase or one part of it, or to redesign it with your agent.

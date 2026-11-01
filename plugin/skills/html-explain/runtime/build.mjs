@@ -4,8 +4,11 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseArgs } from "node:util";
 
 const here = dirname(fileURLToPath(import.meta.url));
+const CSS = readFileSync(join(here, "explain.css"), "utf8");
+const JS = readFileSync(join(here, "explain.js"), "utf8");
 
 export function check(spec) {
   const errors = [];
@@ -15,10 +18,8 @@ export function check(spec) {
   const zones = new Map((spec.zones || []).map((z) => [z.id, z]));
   need(zones.size === (spec.zones || []).length, "zone ids must be unique");
   const after = spec.after || {};
-  const added = after.add || [];
-  const all = [...(spec.nodes || []), ...added];
   const ids = new Set();
-  for (const n of all) {
+  for (const n of [...(spec.nodes || []), ...(after.add || [])]) {
     need(n.id && !ids.has(n.id), `node id missing or repeated: ${n.id}`);
     ids.add(n.id);
     need(zones.has(n.zone), `node ${n.id}: unknown zone ${n.zone}`);
@@ -38,15 +39,15 @@ export function check(spec) {
   const always = (spec.edges || []).filter((e) => e.always).length;
   need(always <= 6, `${always} arrows are \`always\`: keep it to the main flow, 6 at most`);
   const edges = new Set();
-  for (const e of [...(spec.edges || []), ...((after.edges && after.edges.add) || [])]) {
+  for (const e of [...(spec.edges || []), ...(after.edges?.add || [])]) {
     need(ids.has(e.from) && ids.has(e.to), `edge ${e.from}>${e.to}: unknown node`);
     edges.add(`${e.from}>${e.to}`);
   }
-  for (const id of Object.keys(after.nodes || {})) need(ids.has(id), `after.nodes: unknown node ${id}`);
   for (const [id, p] of Object.entries(after.nodes || {})) {
+    need(ids.has(id), `after.nodes: unknown node ${id}`);
     need(["changed", "removed", "same", undefined].includes(p.status), `after.nodes.${id}: status is changed, removed or same`);
   }
-  for (const id of (after.edges && after.edges.remove) || []) need(edges.has(id), `after.edges.remove: unknown edge ${id}`);
+  for (const id of after.edges?.remove || []) need(edges.has(id), `after.edges.remove: unknown edge ${id}`);
   for (const x of after.notes || []) for (const id of x.ids || []) need(ids.has(id), `after.notes: unknown node ${id}`);
   for (const key of Object.keys(spec.threads || {})) {
     const ok = key === "page" || (key.startsWith("node:") && ids.has(key.slice(5))) || (key.startsWith("edge:") && edges.has(key.slice(5)));
@@ -55,47 +56,57 @@ export function check(spec) {
   return errors;
 }
 
-export function page(spec) {
-  const css = readFileSync(join(here, "explain.css"), "utf8");
-  const js = readFileSync(join(here, "explain.js"), "utf8");
-  const data = JSON.stringify(spec).replace(/</g, "\\u003c");
+// The spec at `path` and what is wrong with it; a file that does not parse is one error.
+export function load(path) {
+  try {
+    const spec = JSON.parse(readFileSync(path, "utf8"));
+    return { spec, errors: check(spec) };
+  } catch (e) {
+    return { spec: null, errors: [`${path}: ${e.message}`] };
+  }
+}
+
+// The page; `live` ({token, version}) is set when serve.mjs serves it.
+export function page(spec, live) {
+  const json = (x) => JSON.stringify(x).replace(/</g, "\\u003c");
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${spec.title.replace(/</g, "&lt;").replace(/`/g, "")}</title>
+<title>${spec.title.replace(/[<`]/g, "")}</title>
 <style>
-${css}</style>
+${CSS}</style>
 </head>
 <body>
-<script type="application/json" id="spec">${data}</script>
-<script>
-${js}</script>
+<script type="application/json" id="spec">${json(spec)}</script>
+${live ? `<script type="application/json" id="live">${json(live)}</script>\n` : ""}<script>
+${JS}</script>
 </body>
 </html>
 `;
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const args = process.argv.slice(2);
-  const src = args.find((a) => !a.startsWith("-") && args[args.indexOf(a) - 1] !== "-o");
+  const { values, positionals } = parseArgs({
+    allowPositionals: true,
+    options: { out: { type: "string", short: "o" }, check: { type: "boolean" } },
+  });
+  const src = positionals[0];
   if (!src) {
     console.error("usage: node build.mjs <spec.json> [-o page.html] [--check]");
     process.exit(2);
   }
-  const spec = JSON.parse(readFileSync(src, "utf8"));
-  const errors = check(spec);
+  const { spec, errors } = load(src);
   if (errors.length) {
     console.error(errors.map((e) => "error: " + e).join("\n"));
     process.exit(1);
   }
-  if (args.includes("--check")) {
+  if (values.check) {
     console.log(`ok: ${spec.nodes.length} boxes, ${(spec.edges || []).length} arrows`);
-    process.exit(0);
+  } else {
+    const out = values.out || src.replace(/\.json$/, "") + ".html";
+    writeFileSync(out, page(spec));
+    console.log(`wrote ${out}`);
   }
-  const i = args.indexOf("-o");
-  const out = i >= 0 ? args[i + 1] : src.replace(/\.json$/, "") + ".html";
-  writeFileSync(out, page(spec));
-  console.log(`wrote ${out}`);
 }

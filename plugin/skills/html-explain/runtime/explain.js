@@ -1,16 +1,18 @@
 (() => {
   let S = JSON.parse(document.getElementById("spec").textContent);
+  const LIVE = JSON.parse(document.getElementById("live")?.textContent || "null"); // set by serve.mjs
+  const live = !!LIVE;
   const KEY = "html-explain:" + S.id;
-  const token = document.body.dataset.token; // set by serve.mjs: notes go straight to the agent
-  const live = !!token;
-  const api = (path, opts = {}) => fetch(path, { ...opts, headers: { "X-HX-Token": token } });
   const $ = (q, el = document) => el.querySelector(q);
   const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
   const md = (s) => esc(s).replace(/`([^`]+)`/g, "<code>$1</code>");
+  const api = (path, opts = {}) => fetch(path, { ...opts, headers: { "X-HX-Token": LIVE.token } });
+
   // notes the agent has not answered yet: unsent, or sent in live mode; one filed in `threads` drops
   let pending = [];
   try { pending = JSON.parse(localStorage.getItem(KEY) || "[]"); } catch {}
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(pending)); } catch {} };
+  const unsent = () => pending.filter((n) => !n.sent);
   let threads = {};
   function absorb(spec) {
     S = spec;
@@ -20,14 +22,13 @@
     save();
   }
   absorb(S);
-  const drafts = {}; // half-written notes by key: a redraw from the agent keeps them
+  const drafts = {}; // half-written notes by key: a redraw keeps them
 
   let mode = "before";
   let sel = null; // "node:<id>", "edge:<from>><to>" or null
   let view, els = {};
 
-  const edgeId = (e) => `${e.from}>${e.to}`;
-
+  // the view model of one mode; `byKey` maps "node:<id>" and "edge:<from>><to>" to their item
   function build(m) {
     const nodes = {};
     for (const n of S.nodes) nodes[n.id] = { ...n };
@@ -36,23 +37,29 @@
     if (m === "after" && S.after) {
       const a = S.after;
       for (const [id, p] of Object.entries(a.nodes || {})) {
-        if (!nodes[id]) continue;
-        nodes[id] = { ...nodes[id], ...p, status: p.status || "changed" };
+        if (nodes[id]) nodes[id] = { ...nodes[id], ...p, status: p.status || "changed" };
       }
       for (const n of a.add || []) nodes[n.id] = { ...n, status: "new" };
-      const gone = new Set(Object.keys(nodes).filter((id) => nodes[id].status === "removed"));
-      const drop = new Set((a.edges && a.edges.remove) || []);
-      edges = edges.filter((e) => !drop.has(edgeId(e)) && !gone.has(e.from) && !gone.has(e.to));
-      edges = edges.concat(((a.edges && a.edges.add) || []).map((e) => ({ ...e })));
-      for (const id of gone) nodes[id].note = null;
+      const drop = new Set(a.edges?.remove || []);
+      const gone = (id) => nodes[id].status === "removed";
+      edges = edges.filter((e) => !drop.has(`${e.from}>${e.to}`) && !gone(e.from) && !gone(e.to));
+      edges = edges.concat((a.edges?.add || []).map((e) => ({ ...e })));
     }
-    for (const n of Object.values(nodes)) { n.out = []; n.in = []; }
+    const byKey = new Map();
+    for (const n of Object.values(nodes)) {
+      Object.assign(n, { key: "node:" + n.id, out: [], in: [] });
+      if (n.status === "removed") n.note = null;
+      byKey.set(n.key, n);
+    }
     for (const e of edges) {
-      if (nodes[e.from] && nodes[e.to]) { nodes[e.from].out.push(e); nodes[e.to].in.push(e); }
+      e.key = `edge:${e.from}>${e.to}`;
+      byKey.set(e.key, e);
+      nodes[e.from].out.push(e);
+      nodes[e.to].in.push(e);
     }
-    return { nodes, edges, zones };
+    return { nodes, edges, zones, byKey };
   }
-
+  const picked = () => (sel ? view.byKey.get(sel) : null);
   const talk = (key) => (threads[key] || []).length + pending.filter((n) => n.el === key).length;
 
   function nodeEl(n) {
@@ -61,12 +68,12 @@
     el.className = "node" + (n.kind ? " " + n.kind : "") + (n.note ? " flag" : "") + cls;
     const size = n.status === "removed" ? "removed" : n.status === "changed" ? "edited" : (n.size ?? "");
     el.innerHTML = `<div class="t">${esc(n.title)}</div><div class="f"><span>${esc(n.file || "")}</span><span>${esc(size)}</span></div>`;
-    const k = talk("node:" + n.id);
+    const k = talk(n.key);
     if (k) {
-      const mine = pending.some((p) => p.el === "node:" + n.id);
+      const mine = pending.some((p) => p.el === n.key);
       el.insertAdjacentHTML("beforeend", `<span class="talk${mine ? " pending" : ""}">${k}</span>`);
     }
-    el.onclick = (e) => { e.stopPropagation(); select("node:" + n.id); };
+    el.onclick = (e) => { e.stopPropagation(); select(n.key); };
     els[n.id] = el;
     return el;
   }
@@ -111,67 +118,57 @@
       if (z.flow) sec.insertAdjacentHTML("beforeend", `<div class="flowline">${md(z.flow)}</div>`);
       board.append(sec);
     }
-    if (sel && sel.startsWith("node:") && !view.nodes[sel.slice(5)]) sel = null;
-    if (sel && sel.startsWith("edge:") && !view.edges.some((e) => "edge:" + edgeId(e) === sel)) sel = null;
-    select(sel);
+    select(view.byKey.has(sel) ? sel : null);
     refreshBar();
   }
 
   // ---- wires: edges marked `always`, plus the selected node's edges or the selected edge
-  function center(el) {
-    const b = $("#board").getBoundingClientRect(), r = el.getBoundingClientRect();
-    return [r.left - b.left + r.width / 2, r.top - b.top + r.height / 2];
+  const NS = "http://www.w3.org/2000/svg";
+  function svg(tag, attrs, text) {
+    const el = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+    if (text) el.textContent = text;
+    return el;
   }
   function draw() {
-    const svg = $("#wires");
-    svg.innerHTML = "";
-    const node = sel && sel.startsWith("node:") ? sel.slice(5) : null;
-    const shown = view.edges.filter((e) => e.always || (node && (e.from === node || e.to === node)) || "edge:" + edgeId(e) === sel);
+    const wires = $("#wires");
+    const b = $("#board").getBoundingClientRect();
+    const at = (el) => {
+      const r = el.getBoundingClientRect();
+      return [r.left - b.left + r.width / 2, r.top - b.top + r.height / 2];
+    };
+    const node = sel?.startsWith("node:") ? sel.slice(5) : null;
+    const shown = view.edges.filter((e) => e.always || e.from === node || e.to === node || e.key === sel);
+    const out = document.createDocumentFragment();
     for (const e of shown) {
       if (!els[e.from] || !els[e.to]) continue;
-      const [x1, y1] = center(els[e.from]), [x2, y2] = center(els[e.to]);
-      const mx = (x1 + x2) / 2, my = (y1 + y2) / 2 - Math.min(60, Math.abs(x2 - x1) / 4);
-      const d = `M${x1},${y1} Q${mx},${my} ${x2},${y2}`;
-      const picked = "edge:" + edgeId(e) === sel;
-      const color = picked ? "#1d1d1f" : node === e.to ? "#8e44ad" : node === e.from ? "#0a66c2" : "#9a9a9a";
-      const ns = "http://www.w3.org/2000/svg";
-      const p = document.createElementNS(ns, "path");
-      p.setAttribute("d", d);
-      p.setAttribute("fill", "none");
-      p.setAttribute("stroke", color);
-      p.setAttribute("stroke-width", picked ? "2.6" : "1.6");
-      if (node === e.to && !picked) p.setAttribute("stroke-dasharray", "4 4");
-      const hit = document.createElementNS(ns, "path");
-      hit.setAttribute("d", d);
-      hit.setAttribute("class", "hit");
-      hit.setAttribute("fill", "none");
-      hit.setAttribute("stroke", "transparent");
-      hit.setAttribute("stroke-width", "12");
-      hit.onclick = (ev) => { ev.stopPropagation(); select("edge:" + edgeId(e)); };
-      const tip = document.createElementNS(ns, "title");
-      tip.textContent = `${view.nodes[e.from].title} → ${view.nodes[e.to].title}${e.label ? ": " + e.label : ""}`;
-      hit.append(tip);
-      svg.append(p, hit);
-      if (e.label && (picked || e.always)) {
-        const t = document.createElementNS(ns, "text");
-        t.setAttribute("x", mx); t.setAttribute("y", (y1 + y2) / 2 - Math.min(30, Math.abs(x2 - x1) / 8) - 4);
-        t.setAttribute("text-anchor", "middle"); t.setAttribute("font-size", "11"); t.setAttribute("fill", color);
-        t.textContent = e.label;
-        svg.append(t);
+      const [x1, y1] = at(els[e.from]), [x2, y2] = at(els[e.to]);
+      const bend = Math.min(60, Math.abs(x2 - x1) / 4);
+      const d = `M${x1},${y1} Q${(x1 + x2) / 2},${(y1 + y2) / 2 - bend} ${x2},${y2}`;
+      const cls = e.key === sel ? "sel" : node === e.to ? "b" : node === e.from ? "u" : "";
+      const hit = svg("path", { d, class: "hit" });
+      hit.append(svg("title", {}, `${view.nodes[e.from].title} → ${view.nodes[e.to].title}${e.label ? ": " + e.label : ""}`));
+      hit.onclick = (ev) => { ev.stopPropagation(); select(e.key); };
+      out.append(svg("path", { d, class: "w " + cls }), hit);
+      if (e.label && (cls === "sel" || e.always)) {
+        out.append(svg("text", { x: (x1 + x2) / 2, y: (y1 + y2) / 2 - bend / 2 - 4, class: "w " + cls }, e.label));
       }
     }
+    wires.replaceChildren(out);
   }
+  let frame = 0;
+  const redraw = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(draw); };
 
   // ---- the side panel
   function chip(id, cls) {
     const n = view.nodes[id];
-    return n ? `<button class="chip ${cls}" data-key="node:${esc(id)}">${esc(n.title)}</button>` : "";
+    return n ? `<button class="chip ${cls}" data-key="${esc(n.key)}">${esc(n.title)}</button>` : "";
   }
   function edgeChip(e, other, cls) {
-    const k = talk("edge:" + edgeId(e));
-    const lab = view.nodes[other] ? view.nodes[other].title : other;
-    return `<button class="chip ${cls}" data-key="edge:${esc(edgeId(e))}">${esc(lab)}${e.label ? " · " + esc(e.label) : ""}${k ? ` (${k})` : ""}</button>`;
+    const k = talk(e.key);
+    return `<button class="chip ${cls}" data-key="${esc(e.key)}">${esc(view.nodes[other].title)}${e.label ? " · " + esc(e.label) : ""}${k ? ` (${k})` : ""}</button>`;
   }
+  const chips = (list, f) => (list.length ? `<div class="chips">${list.map(f).join("")}</div>` : `<div class="empty">none</div>`);
   function thread(key) {
     const msgs = (threads[key] || []).map((m) =>
       `<div class="msg ${m.by === "agent" ? "agent" : "user"}"><span class="who">${m.by === "agent" ? "Agent" : "You"}${m.view ? " · " + esc(m.view) : ""}</span>${md(m.text)}</div>`);
@@ -189,35 +186,34 @@
     const caret = typing ? [old.selectionStart, old.selectionEnd] : null;
     if (old) drafts[old.dataset.for] = old.value;
     const scroll = p.scrollTop;
+    const it = picked();
     let html;
-    if (!sel) {
+    if (!it) {
       const a = mode === "after" && S.after;
       html = `<h2>${esc(a ? a.label || "After" : "Click a box or an arrow")}</h2>
         <p>${md(a ? a.summary || "" : S.summary || "")}</p>
         <p class="empty">${live
-          ? "Click a box or an arrow to read it and leave a note. The agent sees each note as you add it and answers here; the page updates in place."
+          ? "Click a box or an arrow to read it and leave a note. The agent sees each note as you add it and answers here; <b>↻ Load the agent's changes</b> shows its answers in place."
           : "Click a box or an arrow to read it and leave a note. Notes stay in this browser until you copy them to the agent with <b>Notes for the agent</b>."}</p>`;
-      if (a && a.notes && a.notes.length) {
+      if (a?.notes?.length) {
         html += `<h4>Your notes and where they land</h4><ol class="notes-list">${a.notes.map((x) =>
           `<li><div class="q">${md(x.q)}</div><div>${md(x.a)}</div><div class="chips">${(x.ids || []).map((id) => chip(id, "")).join("")}</div></li>`).join("")}</ol>`;
       }
       html += thread("page");
-    } else if (sel.startsWith("node:")) {
-      const n = view.nodes[sel.slice(5)];
-      const tag = n.status === "removed" ? "removed" : n.status === "new" ? "new" : n.tag;
-      html = `${tag ? `<span class="tag">${esc(tag)}</span>` : ""}<h2>${esc(n.title)}</h2>
-        <div class="file">${esc(n.file || "")}${n.size && mode === "before" ? " · " + esc(n.size) : ""}</div>
-        <p>${md(n.desc)}</p>
-        ${n.change ? `<h4>What changes</h4><p class="change">${md(n.change)}</p>` : ""}
-        ${n.note ? `<h4>Worth a look</h4><p class="notice">${md(n.note)}</p>` : ""}
-        ${n.status === "removed" ? "" : `<h4>Uses</h4>${n.out.length ? `<div class="chips">${n.out.map((e) => edgeChip(e, e.to, "u")).join("")}</div>` : `<div class="empty">none</div>`}
-        <h4>Used by</h4>${n.in.length ? `<div class="chips">${n.in.map((e) => edgeChip(e, e.from, "b")).join("")}</div>` : `<div class="empty">none</div>`}`}
-        ${thread(sel)}`;
+    } else if (it.out) {
+      const tag = it.status === "removed" ? "removed" : it.status === "new" ? "new" : it.tag;
+      html = `${tag ? `<span class="tag">${esc(tag)}</span>` : ""}<h2>${esc(it.title)}</h2>
+        <div class="file">${esc(it.file || "")}${it.size && mode === "before" ? " · " + esc(it.size) : ""}</div>
+        <p>${md(it.desc)}</p>
+        ${it.change ? `<h4>What changes</h4><p class="change">${md(it.change)}</p>` : ""}
+        ${it.note ? `<h4>Worth a look</h4><p class="notice">${md(it.note)}</p>` : ""}
+        ${it.status === "removed" ? "" : `<h4>Uses</h4>${chips(it.out, (e) => edgeChip(e, e.to, "u"))}
+        <h4>Used by</h4>${chips(it.in, (e) => edgeChip(e, e.from, "b"))}`}
+        ${thread(it.key)}`;
     } else {
-      const e = view.edges.find((x) => "edge:" + edgeId(x) === sel);
-      html = `<span class="tag">arrow</span><h2>${esc(view.nodes[e.from].title)} → ${esc(view.nodes[e.to].title)}</h2>
-        ${e.label ? `<div class="file">${esc(e.label)}</div>` : ""}<p>${md(e.desc || "")}</p>
-        <div class="chips">${chip(e.from, "u")}${chip(e.to, "b")}</div>${thread(sel)}`;
+      html = `<span class="tag">arrow</span><h2>${esc(view.nodes[it.from].title)} → ${esc(view.nodes[it.to].title)}</h2>
+        ${it.label ? `<div class="file">${esc(it.label)}</div>` : ""}<p>${md(it.desc || "")}</p>
+        <div class="chips">${chip(it.from, "u")}${chip(it.to, "b")}</div>${thread(it.key)}`;
     }
     p.innerHTML = html;
     const ta = p.querySelector("textarea.note");
@@ -230,53 +226,48 @@
     p.scrollTop = scroll;
     p.querySelectorAll("[data-key]").forEach((b) => (b.onclick = (ev) => { ev.stopPropagation(); select(b.dataset.key); }));
     p.querySelectorAll("[data-del]").forEach((b) => (b.onclick = () => { pending = pending.filter((n) => n.id !== b.dataset.del); save(); render(); }));
-    p.querySelectorAll("[data-add]").forEach((b) => (b.onclick = async () => {
+    p.querySelector("[data-add]").onclick = async (ev) => {
+      const key = ev.currentTarget.dataset.add;
       const text = ta.value.trim();
       if (!text) return;
-      const note = { id: "n" + Math.random().toString(36).slice(2, 7), el: b.dataset.add, view: mode, text };
+      const note = { id: "n" + Math.random().toString(36).slice(2, 7), el: key, view: mode, text };
       if (live) {
-        try {
-          const r = await api("/api/notes", { method: "POST", body: JSON.stringify(note) });
-          note.sent = r.ok;
-        } catch {}
+        try { note.sent = (await api("/api/notes", { method: "POST", body: JSON.stringify(note) })).ok; } catch {}
         if (!note.sent) toast("Could not reach the agent's server: kept here, copy it with Notes for the agent");
       }
       pending.push(note);
-      drafts[b.dataset.add] = "";
-      ta.value = "";
+      drafts[key] = "";
       save();
       render();
-    }));
+    };
   }
 
   function select(key) {
     sel = key || null;
-    const board = $("#board");
-    board.classList.toggle("focus", !!sel);
+    $("#board").classList.toggle("focus", !!sel);
     Object.values(els).forEach((e) => e.classList.remove("sel", "rel-u", "rel-b"));
-    if (sel && sel.startsWith("node:")) {
-      const n = view.nodes[sel.slice(5)];
-      els[n.id].classList.add("sel");
-      n.out.forEach((e) => els[e.to] && els[e.to].classList.add("rel-u"));
-      n.in.forEach((e) => els[e.from] && els[e.from].classList.add("rel-b"));
-    } else if (sel) {
-      const e = view.edges.find((x) => "edge:" + edgeId(x) === sel);
-      els[e.from].classList.add("rel-u");
-      els[e.to].classList.add("rel-b");
+    const it = picked();
+    const mark = (id, cls) => els[id]?.classList.add(cls);
+    if (it?.out) {
+      mark(it.id, "sel");
+      it.out.forEach((e) => mark(e.to, "rel-u"));
+      it.in.forEach((e) => mark(e.from, "rel-b"));
+    } else if (it) {
+      mark(it.from, "rel-u");
+      mark(it.to, "rel-b");
     }
     history.replaceState(null, "", "#" + mode + (sel ? "/" + sel : ""));
     panel();
     draw();
   }
 
-  // ---- notes for the agent
+  // ---- notes for the agent, offline: one block to paste into the chat
   function label(key) {
     if (key === "page") return "the whole page";
-    if (key.startsWith("node:")) {
-      const n = build("after").nodes[key.slice(5)] || build("before").nodes[key.slice(5)];
-      return `box \`${key.slice(5)}\` (${n ? n.title : "?"}${n && n.file ? ", " + n.file : ""})`;
-    }
-    return `arrow \`${key.slice(5)}\``;
+    const id = key.slice(5);
+    if (key.startsWith("edge:")) return `arrow \`${id}\``;
+    const n = [...S.nodes, ...(S.after?.add || [])].find((x) => x.id === id);
+    return `box \`${id}\` (${n ? n.title : "?"}${n?.file ? ", " + n.file : ""})`;
   }
   function exportText() {
     const by = {};
@@ -291,104 +282,92 @@
     }
     return lines.join("\n");
   }
-  const unsent = () => pending.filter((n) => !n.sent);
   function refreshBar() {
-    const waiting = pending.length - unsent().length;
-    $("#notes-btn").textContent = live && !unsent().length
+    const left = unsent().length, waiting = pending.length - left;
+    $("#notes-btn").textContent = live && !left
       ? `Live · the agent reads each note${waiting ? ` (${waiting} waiting)` : ""}`
-      : `Notes for the agent (${unsent().length})`;
+      : `Notes for the agent (${left})`;
   }
   function toast(t) {
     const el = $("#toast");
     el.textContent = t;
     el.style.display = "block";
-    setTimeout(() => (el.style.display = "none"), 1800);
+    setTimeout(() => (el.style.display = "none"), 2400);
   }
 
-  let header;
-  function shell() {
-    const legend = [
-      ["background:var(--part);border-color:var(--part)", "key part"],
-      ["border:2px solid var(--coreline)", "main step"],
-      ["", "module"],
-      ["background:var(--flag);border-color:var(--flag);border-radius:50%;width:8px;height:8px", "worth a look"],
-    ];
-    const after = [
-      ["border-left:4px solid var(--uses)", "changes"],
-      ["background:#fdecea;border:1px dashed var(--flag)", "removed"],
-      ["background:#eef8f2;border:1px dashed var(--new)", "new"],
-    ];
-    header = () => {
-      document.title = S.title.replace(/`/g, "");
-      $("header").innerHTML = `<h1>${md(S.title)}</h1>
-        ${S.after ? `<span class="switch"><button data-mode="before">Before</button><button data-mode="after">${esc(S.after.label || "After")}</button></span>` : ""}
-        ${S.subtitle ? `<span class="sub">${md(S.subtitle)}</span>` : ""}
-        <span class="legend">${legend.map(([s, t]) => `<span><span class="sw" style="${s}"></span>${t}</span>`).join("")}
-          ${after.map(([s, t]) => `<span class="after-only"><span class="sw" style="${s}"></span>${t}</span>`).join("")}
-          <span style="color:var(--uses)">━ uses</span><span style="color:var(--usedby)">┅ used by</span></span>`;
-      document.querySelectorAll(".switch button").forEach((b) => (b.onclick = () => { mode = b.dataset.mode; render(); }));
-      document.querySelectorAll(".switch button").forEach((b) => b.classList.toggle("on", b.dataset.mode === mode));
-    };
-    document.body.innerHTML = `
-      <header></header>
-      <div class="wrap"><div id="board"><svg id="wires"></svg></div><aside id="panel"></aside></div>
-      <div id="bar"><button class="btn" id="reload" title="Load the agent's changes into this page">↻ Load the agent's changes</button><button class="btn primary" id="notes-btn"></button></div>
-      <div id="sheet"><div class="box"><b>Notes for the agent</b>
-        <span class="empty">Copy this and paste it to the agent. It answers each note in place and updates the After view.</span>
-        <pre id="sheet-text"></pre>
-        <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn" id="sheet-close">Close</button><button class="btn primary" id="sheet-copy">Copy</button></div></div></div>
-      <div id="toast"></div>`;
-    $("#board").onclick = () => select(null);
-    $("#reload").onclick = () => {
-      if (!incoming) return;
-      absorb(incoming);
-      incoming = null;
-      $("#reload").classList.remove("on");
-      render();
-    };
-    $("#notes-btn").onclick = () => {
-      if (!unsent().length) return toast(live ? "The agent already has every note" : "No notes yet: click a box or an arrow to add one");
-      $("#sheet-text").textContent = exportText();
-      $("#sheet").classList.add("on");
-    };
-    $("#sheet-close").onclick = () => $("#sheet").classList.remove("on");
-    $("#sheet-copy").onclick = async () => {
-      const text = exportText();
-      try { await navigator.clipboard.writeText(text); } catch {
-        const ta = document.createElement("textarea"); ta.value = text; document.body.append(ta); ta.select(); document.execCommand("copy"); ta.remove();
-      }
-      toast("Copied: paste it to the agent");
-    };
-    addEventListener("resize", draw);
+  const LEGEND = [["part", "key part"], ["step", "main step"], ["", "module"], ["dot", "worth a look"]];
+  const LEGEND_AFTER = [["chg", "changes"], ["gone", "removed"], ["new", "new"]];
+  function header() {
+    document.title = S.title.replace(/`/g, "");
+    const sw = ([cls, t], extra = "") => `<span class="${extra}"><span class="sw ${cls}"></span>${t}</span>`;
+    $("header").innerHTML = `<h1>${md(S.title)}</h1>
+      ${S.after ? `<span class="switch"><button data-mode="before">Before</button><button data-mode="after">${esc(S.after.label || "After")}</button></span>` : ""}
+      ${S.subtitle ? `<span class="sub">${md(S.subtitle)}</span>` : ""}
+      <span class="legend">${LEGEND.map((x) => sw(x)).join("")}${LEGEND_AFTER.map((x) => sw(x, "after-only")).join("")}
+        <span class="u">━ uses</span><span class="b">┅ used by</span></span>`;
+    document.querySelectorAll(".switch button").forEach((b) => {
+      b.classList.toggle("on", b.dataset.mode === mode);
+      b.onclick = () => { mode = b.dataset.mode; render(); };
+    });
   }
 
-  shell();
+  document.body.innerHTML = `
+    <header></header>
+    <div class="wrap"><div id="board"><svg id="wires"></svg></div><aside id="panel"></aside></div>
+    <div id="bar"><button class="btn" id="reload" title="Load the agent's changes into this page">↻ Load the agent's changes</button><button class="btn primary" id="notes-btn"></button></div>
+    <dialog id="sheet"><b>Notes for the agent</b>
+      <span class="empty">Copy this and paste it to the agent. It answers each note in place and updates the After view.</span>
+      <pre id="sheet-text"></pre>
+      <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn" id="sheet-close">Close</button><button class="btn primary" id="sheet-copy">Copy</button></div></dialog>
+    <div id="toast"></div>`;
+  $("#board").onclick = () => select(null);
+  $("#notes-btn").onclick = () => {
+    if (!unsent().length) return toast(live ? "The agent already has every note" : "No notes yet: click a box or an arrow to add one");
+    $("#sheet-text").textContent = exportText();
+    $("#sheet").showModal();
+  };
+  $("#sheet-close").onclick = () => $("#sheet").close();
+  $("#sheet-copy").onclick = async () => {
+    const text = $("#sheet-text").textContent;
+    try { await navigator.clipboard.writeText(text); } catch {
+      const ta = document.createElement("textarea"); ta.value = text; document.body.append(ta); ta.select(); document.execCommand("copy"); ta.remove();
+    }
+    toast("Copied: paste it to the agent");
+  };
+  addEventListener("resize", redraw);
+
   const [m, ...rest] = location.hash.slice(1).split("/");
   if (m === "after" && S.after) mode = "after";
   sel = rest.join("/") || null;
   render();
 
-  // live mode: the agent's saves wait behind the reload icon; a click loads them in place, and the
-  // page itself never reloads, so a half-written note survives
+  // live mode: the agent's saves wait behind the reload button; a click loads them in place, and
+  // the page itself never reloads, so a half-written note survives
+  if (!live) return;
   let incoming = null;
-  function offer(spec) {
-    incoming = JSON.stringify(spec) === JSON.stringify(S) ? null : spec;
-    $("#reload").classList.toggle("on", !!incoming);
-  }
-  async function follow() {
-    let since = 0;
+  $("#reload").onclick = () => {
+    if (!incoming) return;
+    absorb(incoming);
+    incoming = null;
+    $("#reload").classList.remove("on");
+    render();
+  };
+  (async () => {
+    let version = LIVE.version;
     for (;;) {
-      try {
-        const r = await api("/api/spec?since=" + since);
-        if (r.status === 200) {
-          const d = await r.json();
-          since = d.mtime;
-          offer(d.spec);
-        }
-      } catch {
-        await new Promise((ok) => setTimeout(ok, 2000));
+      let r = null;
+      try { r = await api("/api/spec?since=" + version); } catch {}
+      if (r?.status === 200) {
+        const d = await r.json();
+        version = d.version;
+        incoming = d.spec;
+        $("#reload").classList.add("on");
+      } else if (r?.status === 403) {
+        $("#notes-btn").textContent = "The live server restarted: reload this page";
+        return;
+      } else if (r?.status !== 204) {
+        await new Promise((ok) => setTimeout(ok, 2000)); // server down: try again
       }
     }
-  }
-  if (live) follow();
+  })();
 })();

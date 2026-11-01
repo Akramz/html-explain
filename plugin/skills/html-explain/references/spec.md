@@ -3,7 +3,7 @@
 One JSON file. `node runtime/build.mjs <name>.json` checks it and writes `<name>.html`;
 `--check` only checks. `node runtime/serve.mjs <name>.json` serves it live: notes land in
 `<name>.inbox.jsonl`, and `--watch` prints each new one once (its place is kept in
-`<name>.inbox.cursor`). `examples/html-explain.json` uses every field.
+`<name>.inbox.cursor`). `examples/html-explain.json` shows most fields.
 
 ## Top level
 
