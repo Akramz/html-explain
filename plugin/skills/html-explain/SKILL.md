@@ -104,7 +104,9 @@ For every note:
    `change`, `desc`), add new boxes and arrows, remove what goes, and add one line to
    `after.notes` per note: the note in a few words, where it lands, the boxes it touches. Clear a
    box's red dot (`note: null`) when the change settles it; keep open ones as "Open for a later
-   round".
+   round". Follow each change through the system: check every box that calls, reads, depends
+   on or documents the changed one, and patch it too, or say in `after.notes` why it stays the
+   same. Name affected files that have no box.
 
 Then rebuild, and reply in chat with the outcome: what you agreed to, what you pushed back on,
 and any decision the user must make. Raise `round` and update `subtitle` when the user starts a

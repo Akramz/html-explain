@@ -1,7 +1,7 @@
 {
   "name": "html-explain",
   "displayName": "html-explain",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Explain a system as one interactive HTML diagram. Leave notes on any box; the agent answers them in place and draws an After view of the changes you want, then builds it. Use /html-explain [focus].",
   "author": {
     "name": "Akram Zaytar",
