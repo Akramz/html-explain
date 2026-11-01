@@ -2,7 +2,7 @@
  "id": "html-explain",
  "title": "How html-explain works",
  "subtitle": "the plugin itself · round 1",
- "summary": "An agent studies a system and writes a spec: boxes in zones and arrows between them. A build step turns the spec into this page. You leave notes on boxes and arrows, copy them back, and the agent answers them in place and draws an After view.",
+ "summary": "An agent studies a system and writes a spec: boxes in zones and arrows between them. A build step turns the spec into this page. You leave notes on boxes, copy them back, and the agent answers them in place and draws an After view.",
  "round": 1,
  "zones": [
   {
@@ -145,13 +145,13 @@
    "file": "<name>.html",
    "zone": "loop",
    "kind": "step",
-   "desc": "What you read: click a box or an arrow to see what it does and what it connects to."
+   "desc": "What you read: click a box to see what it does and what it connects to."
   },
   {
    "id": "notes",
    "title": "Notes",
    "zone": "loop",
-   "desc": "Each box, arrow and the page itself takes notes. They stay in your browser until you copy them with Notes for the agent."
+   "desc": "Each box and the page itself takes notes. They stay in your browser until you copy them with Notes for the agent."
   },
   {
    "id": "render",
@@ -166,7 +166,7 @@
    "title": "Side panel",
    "file": "runtime/explain.js",
    "zone": "runtime",
-   "desc": "Shows the selected box or arrow: its description, what changes, its arrows, and its conversation."
+   "desc": "Shows the selected box: its description, what changes, its arrows, and its conversation."
   },
   {
    "id": "store",

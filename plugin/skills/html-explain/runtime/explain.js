@@ -28,7 +28,7 @@
   let sel = null; // "node:<id>" or null
   let view, els = {};
 
-  // the view model of one mode; `byKey` maps "node:<id>" to its box
+  // the view model of one mode
   function build(m) {
     const nodes = {};
     for (const n of S.nodes) nodes[n.id] = { ...n };
@@ -45,19 +45,17 @@
       edges = edges.filter((e) => !drop.has(`${e.from}>${e.to}`) && !gone(e.from) && !gone(e.to));
       edges = edges.concat((a.edges?.add || []).map((e) => ({ ...e })));
     }
-    const byKey = new Map();
     for (const n of Object.values(nodes)) {
       Object.assign(n, { key: "node:" + n.id, out: [], in: [] });
       if (n.status === "removed") n.note = null;
-      byKey.set(n.key, n);
     }
     for (const e of edges) {
       nodes[e.from].out.push(e);
       nodes[e.to].in.push(e);
     }
-    return { nodes, edges, zones, byKey };
+    return { nodes, edges, zones };
   }
-  const picked = () => (sel ? view.byKey.get(sel) : null);
+  const picked = () => (sel ? view.nodes[sel.slice(5)] : null);
   const talk = (key) => (threads[key] || []).length + pending.filter((n) => n.el === key).length;
 
   function nodeEl(n) {
@@ -116,29 +114,23 @@
       if (z.flow) sec.insertAdjacentHTML("beforeend", `<div class="flowline">${md(z.flow)}</div>`);
       board.append(sec);
     }
-    select(view.byKey.has(sel) ? sel : null);
+    select(picked() ? sel : null);
     refreshBar();
   }
 
   // ---- arrows: those marked `always`, plus the selected box's. They are drawn above the boxes,
-  // from edge to edge, so the boxes they join never hide them.
-  const NS = "http://www.w3.org/2000/svg";
-  function svg(tag, attrs, text) {
-    const el = document.createElementNS(NS, tag);
-    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
-    if (text) el.textContent = text;
-    return el;
-  }
+  // from edge to edge, straight unless both directions between two boxes are shown.
   const MARKERS = ["", "u", "b"].map((c) =>
-    `<marker id="arrow${c}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head ${c}" d="M0,1 L9,5 L0,9 z"/></marker>`).join("");
+    `<marker id="arrow${c}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="head ${c}" d="M0,1 L9,5 L0,9 z"/></marker>`).join("");
+  const GAP = 3; // between a box and its arrow's end
+  const LABEL = { char: 6.6, line: 14 }; // the 11px label font: average width, line height
   function draw() {
-    const wires = $("#wires");
     const b = $("#board").getBoundingClientRect();
     const box = (el) => {
       const r = el.getBoundingClientRect();
-      return { x: r.left - b.left + r.width / 2, y: r.top - b.top + r.height / 2, w: r.width / 2 + 3, h: r.height / 2 + 3 };
+      return { x: r.left - b.left + r.width / 2, y: r.top - b.top + r.height / 2, w: r.width / 2 + GAP, h: r.height / 2 + GAP };
     };
-    // where the line from a box's centre towards the other box's centre leaves it, plus a gap
+    // where the line from a box's centre towards the other box's centre leaves it
     const rim = (a, o) => {
       const dx = o.x - a.x, dy = o.y - a.y;
       const t = Math.min(a.w / Math.abs(dx || 1e-9), a.h / Math.abs(dy || 1e-9));
@@ -147,41 +139,35 @@
     const node = sel ? sel.slice(5) : null;
     const shown = view.edges.filter((e) => e.always || e.from === node || e.to === node);
     let html = `<defs>${MARKERS}</defs>`;
-    const labels = [], taken = [];
+    const taken = [];
     for (const e of shown) {
       if (!els[e.from] || !els[e.to]) continue;
       const A = box(els[e.from]), B = box(els[e.to]);
       const [x1, y1] = rim(A, B), [x2, y2] = rim(B, A);
-      const len = Math.hypot(x2 - x1, y2 - y1) || 1;
+      const len = Math.hypot(x2 - x1, y2 - y1);
       // boxes that nearly touch get no line: the outline and the panel already show the link
       if ((x2 - x1) * (B.x - A.x) + (y2 - y1) * (B.y - A.y) <= 0 || len < 10) continue;
-      const bend = len < 60 ? 0 : Math.min(36, len / 7); // short hops stay straight
-      const cx = (x1 + x2) / 2 + ((y2 - y1) / len) * bend, cy = (y1 + y2) / 2 - ((x2 - x1) / len) * bend;
-      const cls = node === e.to ? "b" : node === e.from ? "u" : node ? "bg" : "";
-      const head = cls === "bg" ? "" : cls;
-      html += `<path class="w ${cls}" d="M${x1},${y1} Q${cx},${cy} ${x2},${y2}" marker-end="url(#arrow${head})"/>`;
-      // a label sits at the curve's middle, unless another label is already there
-      const lx = (x1 + 2 * cx + x2) / 4, ly = (y1 + 2 * cy + y2) / 4 - 4, half = e.label ? e.label.length * 3.3 + 4 : 0;
-      const clash = taken.some(([x, y, h]) => Math.abs(x - lx) < h + half && Math.abs(y - ly) < 14);
-      if (e.label && cls !== "bg" && !clash) {
+      const back = shown.some((r) => r.from === e.to && r.to === e.from) ? 16 : 0;
+      const cx = (x1 + x2) / 2 + ((y2 - y1) / len) * back, cy = (y1 + y2) / 2 - ((x2 - x1) / len) * back;
+      const cls = node === e.to ? "b" : node === e.from ? "u" : "";
+      html += `<path class="w ${cls}" d="M${x1},${y1} Q${cx},${cy} ${x2},${y2}" marker-end="url(#arrow${cls})"/>`;
+      // a label sits at the line's middle, unless another label is already there
+      const lx = (x1 + 2 * cx + x2) / 4, ly = (y1 + 2 * cy + y2) / 4 - 4;
+      const half = ((e.label || "").length * LABEL.char) / 2 + 4;
+      if (e.label && !taken.some(([x, y, h]) => Math.abs(x - lx) < h + half && Math.abs(y - ly) < LABEL.line)) {
         taken.push([lx, ly, half]);
-        labels.push(svg("text", { x: lx, y: ly, class: "w " + cls }, e.label));
+        html += `<text x="${lx}" y="${ly}" class="w ${cls}">${esc(e.label)}</text>`;
       }
     }
-    wires.innerHTML = html;
-    wires.append(...labels);
+    $("#wires").innerHTML = html;
   }
   let frame = 0;
   const redraw = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(draw); };
 
   // ---- the side panel
-  function chip(id, cls) {
+  function chip(id, cls, label) {
     const n = view.nodes[id];
-    return n ? `<button class="chip ${cls}" data-key="${esc(n.key)}">${esc(n.title)}</button>` : "";
-  }
-  function edgeChip(e, other, cls) {
-    const n = view.nodes[other];
-    return `<button class="chip ${cls}" data-key="${esc(n.key)}">${esc(n.title)}${e.label ? " · " + esc(e.label) : ""}</button>`;
+    return n ? `<button class="chip ${cls}" data-key="${esc(n.key)}">${esc(n.title)}${label ? " · " + esc(label) : ""}</button>` : "";
   }
   const chips = (list, f) => (list.length ? `<div class="chips">${list.map(f).join("")}</div>` : `<div class="empty">none</div>`);
   function thread(key) {
@@ -222,8 +208,8 @@
         <p>${md(it.desc)}</p>
         ${it.change ? `<h4>What changes</h4><p class="change">${md(it.change)}</p>` : ""}
         ${it.note ? `<h4>Worth a look</h4><p class="notice">${md(it.note)}</p>` : ""}
-        ${it.status === "removed" ? "" : `<h4>Uses</h4>${chips(it.out, (e) => edgeChip(e, e.to, "u"))}
-        <h4>Used by</h4>${chips(it.in, (e) => edgeChip(e, e.from, "b"))}`}
+        ${it.status === "removed" ? "" : `<h4>Uses</h4>${chips(it.out, (e) => chip(e.to, "u", e.label))}
+        <h4>Used by</h4>${chips(it.in, (e) => chip(e.from, "b", e.label))}`}
         ${thread(it.key)}`;
     }
     p.innerHTML = html;

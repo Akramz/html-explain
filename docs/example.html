@@ -8,7 +8,7 @@
 :root {
   --ink: #1d1d1f; --mute: #6e6e73; --line: #d2d2d7; --bg: #f5f5f7; --card: #fff;
   --core: #fff6e0; --coreline: #e0a800; --part: #c98a00; --uses: #0a66c2; --usedby: #8e44ad;
-  --flag: #e5534b; --new: #1f7a52; --agent: #0a66c2;
+  --flag: #e5534b; --new: #1f7a52; --agent: #0a66c2; --wire: #8e8e93; --wire-dim: #c7c7cc;
 }
 * { box-sizing: border-box; }
 body { margin: 0; font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: var(--ink); background: var(--bg); }
@@ -32,16 +32,18 @@ h1 { font-size: 20px; margin: 0; }
 .wrap { display: flex; gap: 16px; padding: 8px 24px 80px; align-items: flex-start; }
 #board { position: relative; flex: 1; display: grid; gap: 14px; grid-template-columns: repeat(12, 1fr); }
 #wires { position: absolute; inset: 0; overflow: visible; z-index: 7; pointer-events: none; }
-#wires path.w { fill: none; stroke: #8e8e93; stroke-width: 1.8; stroke-linecap: round; }
+#wires path.w { fill: none; stroke: var(--wire); stroke-width: 1.8; stroke-linecap: round; }
 #wires path.u { stroke: var(--uses); stroke-width: 2.2; }
 #wires path.b { stroke: var(--usedby); stroke-width: 2.2; stroke-dasharray: 6 4; }
-#wires path.bg { stroke: #c7c7cc; stroke-width: 1.2; }
-#wires .head { fill: #8e8e93; }
+#wires .head { fill: var(--wire); }
 #wires .head.u { fill: var(--uses); }
 #wires .head.b { fill: var(--usedby); }
-#wires text.w { font-size: 11px; font-weight: 600; text-anchor: middle; fill: #6e6e73; paint-order: stroke; stroke: #fff; stroke-width: 4px; stroke-linejoin: round; }
+#wires text.w { font-size: 11px; font-weight: 600; text-anchor: middle; fill: var(--mute); paint-order: stroke; stroke: var(--card); stroke-width: 4px; stroke-linejoin: round; }
 #wires text.u { fill: var(--uses); }
 #wires text.b { fill: var(--usedby); }
+/* with a box selected, the always-on arrows that are not its own fade back */
+#board.focus #wires path.w:not(.u):not(.b) { stroke: var(--wire-dim); stroke-width: 1.2; }
+#board.focus #wires text.w:not(.u):not(.b) { display: none; }
 .zone { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px 12px; }
 .zone h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--mute); margin: 0 0 8px; font-weight: 600; }
 .zone .why { font-size: 12px; color: var(--mute); margin: -4px 0 8px; }
@@ -116,7 +118,7 @@ textarea.note { width: 100%; min-height: 64px; font: inherit; padding: 6px 8px; 
 </style>
 </head>
 <body>
-<script type="application/json" id="spec">{"id":"html-explain","title":"How html-explain works","subtitle":"the plugin itself · round 1","summary":"An agent studies a system and writes a spec: boxes in zones and arrows between them. A build step turns the spec into this page. You leave notes on boxes and arrows, copy them back, and the agent answers them in place and draws an After view.","round":1,"zones":[{"id":"you","title":"You","why":"Where a session starts and where notes come from.","span":4},{"id":"skill","title":"The skill","why":"What the agent reads before it writes anything.","span":8},{"id":"loop","title":"The review loop","style":"core","arrows":true,"columns":[{"title":"1 · Explore","nodes":["explore"]},{"title":"2 · Write","nodes":["spec","after"]},{"title":"3 · Build","nodes":["build","check"]},{"title":"4 · Read","nodes":["page","notes"]}],"flow":"↺ your notes come back as answers in place and changes in the After view"},{"id":"runtime","title":"Page runtime","why":"The JavaScript inside every built page.","span":8},{"id":"out","title":"Outputs","why":"What stays in your project.","span":4},{"id":"later","title":"After only","style":"outside","after_only":true,"why":"Proposed in round 1."}],"nodes":[{"id":"user","title":"You","zone":"you","kind":"part","desc":"Run `/html-explain \u003cwhat to explain>`: a whole repo, a module, or a question like \"how does auth work\"."},{"id":"skillmd","title":"SKILL.md","file":"skills/html-explain/SKILL.md","zone":"skill","desc":"The steps the agent follows: explore, write the spec, build, then answer notes round by round."},{"id":"specref","title":"Spec reference","file":"references/spec.md","zone":"skill","desc":"Every field of the spec with an example: zones, boxes, arrows, the After view, threads."},{"id":"example","title":"Example spec","file":"examples/html-explain.json","zone":"skill","desc":"This page's own spec, to copy from."},{"id":"explore","title":"Explore","zone":"loop","kind":"step","desc":"The agent reads the code the focus points at: modules, sizes, what calls what, and why things are the way they are."},{"id":"spec","title":"Spec","file":"\u003cname>.json","zone":"loop","kind":"step","desc":"The source of the page: zones, boxes with short plain descriptions, arrows, and red-dot notes on what may not fit a simple design."},{"id":"after","title":"After view","file":"spec.after","zone":"loop","desc":"The proposed system: boxes that change, go or appear, and a list of your notes with where each one lands."},{"id":"build","title":"Build","file":"runtime/build.mjs","zone":"loop","kind":"step","desc":"Checks the spec and writes one HTML file with the runtime and the spec inside it. No network, no dependencies."},{"id":"check","title":"Spec check","file":"build.mjs --check","zone":"loop","desc":"Unknown zones, nodes, arrows and thread keys stop the build with a message."},{"id":"page","title":"The page","file":"\u003cname>.html","zone":"loop","kind":"step","desc":"What you read: click a box or an arrow to see what it does and what it connects to."},{"id":"notes","title":"Notes","zone":"loop","desc":"Each box, arrow and the page itself takes notes. They stay in your browser until you copy them with Notes for the agent."},{"id":"render","title":"Render","file":"runtime/explain.js","zone":"runtime","desc":"Lays out zones and boxes, and draws the arrows of the selected box.","note":"Finding one box on a large page means scanning every zone by eye."},{"id":"panel","title":"Side panel","file":"runtime/explain.js","zone":"runtime","desc":"Shows the selected box or arrow: its description, what changes, its arrows, and its conversation."},{"id":"store","title":"Note store","file":"localStorage","zone":"runtime","desc":"Unsent notes, kept per page. A note the agent filed in the spec's threads disappears from it."},{"id":"html","title":"Page file","file":"\u003cname>.html","zone":"out","desc":"One file you can open, share or commit."},{"id":"json","title":"Spec file","file":"\u003cname>.json","zone":"out","desc":"The source; the agent edits it each round."}],"edges":[{"from":"user","to":"skillmd","label":"/html-explain"},{"from":"skillmd","to":"explore"},{"from":"explore","to":"spec"},{"from":"spec","to":"build"},{"from":"after","to":"build"},{"from":"build","to":"check"},{"from":"build","to":"page"},{"from":"page","to":"notes"},{"from":"notes","to":"user","label":"copy to the agent"},{"from":"page","to":"render"},{"from":"page","to":"panel"},{"from":"notes","to":"store"},{"from":"build","to":"html"},{"from":"spec","to":"json"},{"from":"specref","to":"spec"},{"from":"example","to":"spec"}],"after":{"label":"After","summary":"Round 1 adds a search box: type a name and the page selects the box.","nodes":{"render":{"status":"changed","change":"Selects the box a search names.","note":null}},"add":[{"id":"search","title":"Search box","file":"runtime/explain.js","zone":"later","desc":"Type part of a box's name or file; the first match is selected and its arrows drawn."}],"edges":{"add":[{"from":"search","to":"render","label":"selects"}]},"notes":[{"q":"How do I find one box on a big page?","a":"Today by eye. The After view adds a search box.","ids":["render","search"]}]},"threads":{"node:render":[{"id":"n1a2b3","by":"user","view":"before","text":"How do I find one box on a big page?"},{"by":"agent","text":"Today you scan the zones by eye. The After view adds a search box that selects the first box whose name or file matches."}]}}</script>
+<script type="application/json" id="spec">{"id":"html-explain","title":"How html-explain works","subtitle":"the plugin itself · round 1","summary":"An agent studies a system and writes a spec: boxes in zones and arrows between them. A build step turns the spec into this page. You leave notes on boxes, copy them back, and the agent answers them in place and draws an After view.","round":1,"zones":[{"id":"you","title":"You","why":"Where a session starts and where notes come from.","span":4},{"id":"skill","title":"The skill","why":"What the agent reads before it writes anything.","span":8},{"id":"loop","title":"The review loop","style":"core","arrows":true,"columns":[{"title":"1 · Explore","nodes":["explore"]},{"title":"2 · Write","nodes":["spec","after"]},{"title":"3 · Build","nodes":["build","check"]},{"title":"4 · Read","nodes":["page","notes"]}],"flow":"↺ your notes come back as answers in place and changes in the After view"},{"id":"runtime","title":"Page runtime","why":"The JavaScript inside every built page.","span":8},{"id":"out","title":"Outputs","why":"What stays in your project.","span":4},{"id":"later","title":"After only","style":"outside","after_only":true,"why":"Proposed in round 1."}],"nodes":[{"id":"user","title":"You","zone":"you","kind":"part","desc":"Run `/html-explain \u003cwhat to explain>`: a whole repo, a module, or a question like \"how does auth work\"."},{"id":"skillmd","title":"SKILL.md","file":"skills/html-explain/SKILL.md","zone":"skill","desc":"The steps the agent follows: explore, write the spec, build, then answer notes round by round."},{"id":"specref","title":"Spec reference","file":"references/spec.md","zone":"skill","desc":"Every field of the spec with an example: zones, boxes, arrows, the After view, threads."},{"id":"example","title":"Example spec","file":"examples/html-explain.json","zone":"skill","desc":"This page's own spec, to copy from."},{"id":"explore","title":"Explore","zone":"loop","kind":"step","desc":"The agent reads the code the focus points at: modules, sizes, what calls what, and why things are the way they are."},{"id":"spec","title":"Spec","file":"\u003cname>.json","zone":"loop","kind":"step","desc":"The source of the page: zones, boxes with short plain descriptions, arrows, and red-dot notes on what may not fit a simple design."},{"id":"after","title":"After view","file":"spec.after","zone":"loop","desc":"The proposed system: boxes that change, go or appear, and a list of your notes with where each one lands."},{"id":"build","title":"Build","file":"runtime/build.mjs","zone":"loop","kind":"step","desc":"Checks the spec and writes one HTML file with the runtime and the spec inside it. No network, no dependencies."},{"id":"check","title":"Spec check","file":"build.mjs --check","zone":"loop","desc":"Unknown zones, nodes, arrows and thread keys stop the build with a message."},{"id":"page","title":"The page","file":"\u003cname>.html","zone":"loop","kind":"step","desc":"What you read: click a box to see what it does and what it connects to."},{"id":"notes","title":"Notes","zone":"loop","desc":"Each box and the page itself takes notes. They stay in your browser until you copy them with Notes for the agent."},{"id":"render","title":"Render","file":"runtime/explain.js","zone":"runtime","desc":"Lays out zones and boxes, and draws the arrows of the selected box.","note":"Finding one box on a large page means scanning every zone by eye."},{"id":"panel","title":"Side panel","file":"runtime/explain.js","zone":"runtime","desc":"Shows the selected box: its description, what changes, its arrows, and its conversation."},{"id":"store","title":"Note store","file":"localStorage","zone":"runtime","desc":"Unsent notes, kept per page. A note the agent filed in the spec's threads disappears from it."},{"id":"html","title":"Page file","file":"\u003cname>.html","zone":"out","desc":"One file you can open, share or commit."},{"id":"json","title":"Spec file","file":"\u003cname>.json","zone":"out","desc":"The source; the agent edits it each round."}],"edges":[{"from":"user","to":"skillmd","label":"/html-explain"},{"from":"skillmd","to":"explore"},{"from":"explore","to":"spec"},{"from":"spec","to":"build"},{"from":"after","to":"build"},{"from":"build","to":"check"},{"from":"build","to":"page"},{"from":"page","to":"notes"},{"from":"notes","to":"user","label":"copy to the agent"},{"from":"page","to":"render"},{"from":"page","to":"panel"},{"from":"notes","to":"store"},{"from":"build","to":"html"},{"from":"spec","to":"json"},{"from":"specref","to":"spec"},{"from":"example","to":"spec"}],"after":{"label":"After","summary":"Round 1 adds a search box: type a name and the page selects the box.","nodes":{"render":{"status":"changed","change":"Selects the box a search names.","note":null}},"add":[{"id":"search","title":"Search box","file":"runtime/explain.js","zone":"later","desc":"Type part of a box's name or file; the first match is selected and its arrows drawn."}],"edges":{"add":[{"from":"search","to":"render","label":"selects"}]},"notes":[{"q":"How do I find one box on a big page?","a":"Today by eye. The After view adds a search box.","ids":["render","search"]}]},"threads":{"node:render":[{"id":"n1a2b3","by":"user","view":"before","text":"How do I find one box on a big page?"},{"by":"agent","text":"Today you scan the zones by eye. The After view adds a search box that selects the first box whose name or file matches."}]}}</script>
 <script>
 (() => {
   let S = JSON.parse(document.getElementById("spec").textContent);
@@ -148,7 +150,7 @@ textarea.note { width: 100%; min-height: 64px; font: inherit; padding: 6px 8px; 
   let sel = null; // "node:<id>" or null
   let view, els = {};
 
-  // the view model of one mode; `byKey` maps "node:<id>" to its box
+  // the view model of one mode
   function build(m) {
     const nodes = {};
     for (const n of S.nodes) nodes[n.id] = { ...n };
@@ -165,19 +167,17 @@ textarea.note { width: 100%; min-height: 64px; font: inherit; padding: 6px 8px; 
       edges = edges.filter((e) => !drop.has(`${e.from}>${e.to}`) && !gone(e.from) && !gone(e.to));
       edges = edges.concat((a.edges?.add || []).map((e) => ({ ...e })));
     }
-    const byKey = new Map();
     for (const n of Object.values(nodes)) {
       Object.assign(n, { key: "node:" + n.id, out: [], in: [] });
       if (n.status === "removed") n.note = null;
-      byKey.set(n.key, n);
     }
     for (const e of edges) {
       nodes[e.from].out.push(e);
       nodes[e.to].in.push(e);
     }
-    return { nodes, edges, zones, byKey };
+    return { nodes, edges, zones };
   }
-  const picked = () => (sel ? view.byKey.get(sel) : null);
+  const picked = () => (sel ? view.nodes[sel.slice(5)] : null);
   const talk = (key) => (threads[key] || []).length + pending.filter((n) => n.el === key).length;
 
   function nodeEl(n) {
@@ -236,29 +236,23 @@ textarea.note { width: 100%; min-height: 64px; font: inherit; padding: 6px 8px; 
       if (z.flow) sec.insertAdjacentHTML("beforeend", `<div class="flowline">${md(z.flow)}</div>`);
       board.append(sec);
     }
-    select(view.byKey.has(sel) ? sel : null);
+    select(picked() ? sel : null);
     refreshBar();
   }
 
   // ---- arrows: those marked `always`, plus the selected box's. They are drawn above the boxes,
-  // from edge to edge, so the boxes they join never hide them.
-  const NS = "http://www.w3.org/2000/svg";
-  function svg(tag, attrs, text) {
-    const el = document.createElementNS(NS, tag);
-    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
-    if (text) el.textContent = text;
-    return el;
-  }
+  // from edge to edge, straight unless both directions between two boxes are shown.
   const MARKERS = ["", "u", "b"].map((c) =>
-    `<marker id="arrow${c}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head ${c}" d="M0,1 L9,5 L0,9 z"/></marker>`).join("");
+    `<marker id="arrow${c}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="head ${c}" d="M0,1 L9,5 L0,9 z"/></marker>`).join("");
+  const GAP = 3; // between a box and its arrow's end
+  const LABEL = { char: 6.6, line: 14 }; // the 11px label font: average width, line height
   function draw() {
-    const wires = $("#wires");
     const b = $("#board").getBoundingClientRect();
     const box = (el) => {
       const r = el.getBoundingClientRect();
-      return { x: r.left - b.left + r.width / 2, y: r.top - b.top + r.height / 2, w: r.width / 2 + 3, h: r.height / 2 + 3 };
+      return { x: r.left - b.left + r.width / 2, y: r.top - b.top + r.height / 2, w: r.width / 2 + GAP, h: r.height / 2 + GAP };
     };
-    // where the line from a box's centre towards the other box's centre leaves it, plus a gap
+    // where the line from a box's centre towards the other box's centre leaves it
     const rim = (a, o) => {
       const dx = o.x - a.x, dy = o.y - a.y;
       const t = Math.min(a.w / Math.abs(dx || 1e-9), a.h / Math.abs(dy || 1e-9));
@@ -267,41 +261,35 @@ textarea.note { width: 100%; min-height: 64px; font: inherit; padding: 6px 8px; 
     const node = sel ? sel.slice(5) : null;
     const shown = view.edges.filter((e) => e.always || e.from === node || e.to === node);
     let html = `<defs>${MARKERS}</defs>`;
-    const labels = [], taken = [];
+    const taken = [];
     for (const e of shown) {
       if (!els[e.from] || !els[e.to]) continue;
       const A = box(els[e.from]), B = box(els[e.to]);
       const [x1, y1] = rim(A, B), [x2, y2] = rim(B, A);
-      const len = Math.hypot(x2 - x1, y2 - y1) || 1;
+      const len = Math.hypot(x2 - x1, y2 - y1);
       // boxes that nearly touch get no line: the outline and the panel already show the link
       if ((x2 - x1) * (B.x - A.x) + (y2 - y1) * (B.y - A.y) <= 0 || len < 10) continue;
-      const bend = len < 60 ? 0 : Math.min(36, len / 7); // short hops stay straight
-      const cx = (x1 + x2) / 2 + ((y2 - y1) / len) * bend, cy = (y1 + y2) / 2 - ((x2 - x1) / len) * bend;
-      const cls = node === e.to ? "b" : node === e.from ? "u" : node ? "bg" : "";
-      const head = cls === "bg" ? "" : cls;
-      html += `<path class="w ${cls}" d="M${x1},${y1} Q${cx},${cy} ${x2},${y2}" marker-end="url(#arrow${head})"/>`;
-      // a label sits at the curve's middle, unless another label is already there
-      const lx = (x1 + 2 * cx + x2) / 4, ly = (y1 + 2 * cy + y2) / 4 - 4, half = e.label ? e.label.length * 3.3 + 4 : 0;
-      const clash = taken.some(([x, y, h]) => Math.abs(x - lx) < h + half && Math.abs(y - ly) < 14);
-      if (e.label && cls !== "bg" && !clash) {
+      const back = shown.some((r) => r.from === e.to && r.to === e.from) ? 16 : 0;
+      const cx = (x1 + x2) / 2 + ((y2 - y1) / len) * back, cy = (y1 + y2) / 2 - ((x2 - x1) / len) * back;
+      const cls = node === e.to ? "b" : node === e.from ? "u" : "";
+      html += `<path class="w ${cls}" d="M${x1},${y1} Q${cx},${cy} ${x2},${y2}" marker-end="url(#arrow${cls})"/>`;
+      // a label sits at the line's middle, unless another label is already there
+      const lx = (x1 + 2 * cx + x2) / 4, ly = (y1 + 2 * cy + y2) / 4 - 4;
+      const half = ((e.label || "").length * LABEL.char) / 2 + 4;
+      if (e.label && !taken.some(([x, y, h]) => Math.abs(x - lx) < h + half && Math.abs(y - ly) < LABEL.line)) {
         taken.push([lx, ly, half]);
-        labels.push(svg("text", { x: lx, y: ly, class: "w " + cls }, e.label));
+        html += `<text x="${lx}" y="${ly}" class="w ${cls}">${esc(e.label)}</text>`;
       }
     }
-    wires.innerHTML = html;
-    wires.append(...labels);
+    $("#wires").innerHTML = html;
   }
   let frame = 0;
   const redraw = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(draw); };
 
   // ---- the side panel
-  function chip(id, cls) {
+  function chip(id, cls, label) {
     const n = view.nodes[id];
-    return n ? `<button class="chip ${cls}" data-key="${esc(n.key)}">${esc(n.title)}</button>` : "";
-  }
-  function edgeChip(e, other, cls) {
-    const n = view.nodes[other];
-    return `<button class="chip ${cls}" data-key="${esc(n.key)}">${esc(n.title)}${e.label ? " · " + esc(e.label) : ""}</button>`;
+    return n ? `<button class="chip ${cls}" data-key="${esc(n.key)}">${esc(n.title)}${label ? " · " + esc(label) : ""}</button>` : "";
   }
   const chips = (list, f) => (list.length ? `<div class="chips">${list.map(f).join("")}</div>` : `<div class="empty">none</div>`);
   function thread(key) {
@@ -342,8 +330,8 @@ textarea.note { width: 100%; min-height: 64px; font: inherit; padding: 6px 8px; 
         <p>${md(it.desc)}</p>
         ${it.change ? `<h4>What changes</h4><p class="change">${md(it.change)}</p>` : ""}
         ${it.note ? `<h4>Worth a look</h4><p class="notice">${md(it.note)}</p>` : ""}
-        ${it.status === "removed" ? "" : `<h4>Uses</h4>${chips(it.out, (e) => edgeChip(e, e.to, "u"))}
-        <h4>Used by</h4>${chips(it.in, (e) => edgeChip(e, e.from, "b"))}`}
+        ${it.status === "removed" ? "" : `<h4>Uses</h4>${chips(it.out, (e) => chip(e.to, "u", e.label))}
+        <h4>Used by</h4>${chips(it.in, (e) => chip(e.from, "b", e.label))}`}
         ${thread(it.key)}`;
     }
     p.innerHTML = html;
