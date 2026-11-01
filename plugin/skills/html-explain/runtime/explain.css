@@ -24,14 +24,17 @@ h1 { font-size: 20px; margin: 0; }
 .switch button.on { background: var(--ink); color: #fff; }
 .wrap { display: flex; gap: 16px; padding: 8px 24px 80px; align-items: flex-start; }
 #board { position: relative; flex: 1; display: grid; gap: 14px; grid-template-columns: repeat(12, 1fr); }
-#wires { position: absolute; inset: 0; overflow: visible; z-index: 5; pointer-events: none; }
-#wires path.hit { pointer-events: stroke; cursor: pointer; fill: none; stroke: transparent; stroke-width: 12; }
-#wires path.w { fill: none; stroke: #9a9a9a; stroke-width: 1.6; }
-#wires path.u { stroke: var(--uses); }
-#wires path.b { stroke: var(--usedby); stroke-dasharray: 4 4; }
-#wires path.sel { stroke: var(--ink); stroke-width: 2.6; }
-#wires text.w { font-size: 11px; text-anchor: middle; fill: #9a9a9a; }
-#wires text.sel { fill: var(--ink); }
+#wires { position: absolute; inset: 0; overflow: visible; z-index: 7; pointer-events: none; }
+#wires path.w { fill: none; stroke: #8e8e93; stroke-width: 1.8; stroke-linecap: round; }
+#wires path.u { stroke: var(--uses); stroke-width: 2.2; }
+#wires path.b { stroke: var(--usedby); stroke-width: 2.2; stroke-dasharray: 6 4; }
+#wires path.bg { stroke: #c7c7cc; stroke-width: 1.2; }
+#wires .head { fill: #8e8e93; }
+#wires .head.u { fill: var(--uses); }
+#wires .head.b { fill: var(--usedby); }
+#wires text.w { font-size: 11px; font-weight: 600; text-anchor: middle; fill: #6e6e73; paint-order: stroke; stroke: #fff; stroke-width: 4px; stroke-linejoin: round; }
+#wires text.u { fill: var(--uses); }
+#wires text.b { fill: var(--usedby); }
 .zone { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px 12px; }
 .zone h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--mute); margin: 0 0 8px; font-weight: 600; }
 .zone .why { font-size: 12px; color: var(--mute); margin: -4px 0 8px; }

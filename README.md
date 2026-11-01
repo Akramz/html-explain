@@ -1,8 +1,8 @@
 # html-explain
 
 `/html-explain` draws a system as one interactive HTML page: boxes grouped by role, arrows
-between them, and a short plain description behind every box. You click any box or arrow and
-leave notes (questions or changes you want); each reaches your agent as you post it. It answers
+between them, and a short plain description behind every box. You click any box and leave
+notes (questions or changes you want); each reaches your agent as you post it. It answers
 each note in place on the page and draws an **After** view of the system with the changes you
 agreed on.
 Rounds repeat until you are happy; then the agent can build the After view.
@@ -32,7 +32,7 @@ The page is built by a small Node script, so you need [Node.js](https://nodejs.o
 1. The agent reads the code and opens the page. Click a box: the panel says what it does, what
    it uses and what uses it, and its arrows appear. Red dots mark things that may not fit a
    simple design.
-2. Leave notes on any box, arrow or the page. The page is served live from your machine: each
+2. Leave notes on any box or the page. The page is served live from your machine: each
    note reaches the agent as soon as you add it, and it starts working on it.
 3. The agent answers the note in its thread, agrees or pushes back with a reason, and updates
    the **After** view. **↻ Load the agent's changes** appears; click it to see them in place,

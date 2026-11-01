@@ -50,8 +50,8 @@ export function check(spec) {
   for (const id of after.edges?.remove || []) need(edges.has(id), `after.edges.remove: unknown edge ${id}`);
   for (const x of after.notes || []) for (const id of x.ids || []) need(ids.has(id), `after.notes: unknown node ${id}`);
   for (const key of Object.keys(spec.threads || {})) {
-    const ok = key === "page" || (key.startsWith("node:") && ids.has(key.slice(5))) || (key.startsWith("edge:") && edges.has(key.slice(5)));
-    need(ok, `threads: unknown key ${key} (page, node:<id> or edge:<from>><to>)`);
+    const ok = key === "page" || (key.startsWith("node:") && ids.has(key.slice(5)));
+    need(ok, `threads: unknown key ${key} (page or node:<id>)`);
   }
   return errors;
 }

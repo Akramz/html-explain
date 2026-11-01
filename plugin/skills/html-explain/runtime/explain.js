@@ -25,10 +25,10 @@
   const drafts = {}; // half-written notes by key: a redraw keeps them
 
   let mode = "before";
-  let sel = null; // "node:<id>", "edge:<from>><to>" or null
+  let sel = null; // "node:<id>" or null
   let view, els = {};
 
-  // the view model of one mode; `byKey` maps "node:<id>" and "edge:<from>><to>" to their item
+  // the view model of one mode; `byKey` maps "node:<id>" to its box
   function build(m) {
     const nodes = {};
     for (const n of S.nodes) nodes[n.id] = { ...n };
@@ -52,8 +52,6 @@
       byKey.set(n.key, n);
     }
     for (const e of edges) {
-      e.key = `edge:${e.from}>${e.to}`;
-      byKey.set(e.key, e);
       nodes[e.from].out.push(e);
       nodes[e.to].in.push(e);
     }
@@ -122,7 +120,8 @@
     refreshBar();
   }
 
-  // ---- wires: edges marked `always`, plus the selected node's edges or the selected edge
+  // ---- arrows: those marked `always`, plus the selected box's. They are drawn above the boxes,
+  // from edge to edge, so the boxes they join never hide them.
   const NS = "http://www.w3.org/2000/svg";
   function svg(tag, attrs, text) {
     const el = document.createElementNS(NS, tag);
@@ -130,31 +129,47 @@
     if (text) el.textContent = text;
     return el;
   }
+  const MARKERS = ["", "u", "b"].map((c) =>
+    `<marker id="arrow${c}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head ${c}" d="M0,1 L9,5 L0,9 z"/></marker>`).join("");
   function draw() {
     const wires = $("#wires");
     const b = $("#board").getBoundingClientRect();
-    const at = (el) => {
+    const box = (el) => {
       const r = el.getBoundingClientRect();
-      return [r.left - b.left + r.width / 2, r.top - b.top + r.height / 2];
+      return { x: r.left - b.left + r.width / 2, y: r.top - b.top + r.height / 2, w: r.width / 2 + 3, h: r.height / 2 + 3 };
     };
-    const node = sel?.startsWith("node:") ? sel.slice(5) : null;
-    const shown = view.edges.filter((e) => e.always || e.from === node || e.to === node || e.key === sel);
-    const out = document.createDocumentFragment();
+    // where the line from a box's centre towards the other box's centre leaves it, plus a gap
+    const rim = (a, o) => {
+      const dx = o.x - a.x, dy = o.y - a.y;
+      const t = Math.min(a.w / Math.abs(dx || 1e-9), a.h / Math.abs(dy || 1e-9));
+      return [a.x + dx * t, a.y + dy * t];
+    };
+    const node = sel ? sel.slice(5) : null;
+    const shown = view.edges.filter((e) => e.always || e.from === node || e.to === node);
+    let html = `<defs>${MARKERS}</defs>`;
+    const labels = [], taken = [];
     for (const e of shown) {
       if (!els[e.from] || !els[e.to]) continue;
-      const [x1, y1] = at(els[e.from]), [x2, y2] = at(els[e.to]);
-      const bend = Math.min(60, Math.abs(x2 - x1) / 4);
-      const d = `M${x1},${y1} Q${(x1 + x2) / 2},${(y1 + y2) / 2 - bend} ${x2},${y2}`;
-      const cls = e.key === sel ? "sel" : node === e.to ? "b" : node === e.from ? "u" : "";
-      const hit = svg("path", { d, class: "hit" });
-      hit.append(svg("title", {}, `${view.nodes[e.from].title} → ${view.nodes[e.to].title}${e.label ? ": " + e.label : ""}`));
-      hit.onclick = (ev) => { ev.stopPropagation(); select(e.key); };
-      out.append(svg("path", { d, class: "w " + cls }), hit);
-      if (e.label && (cls === "sel" || e.always)) {
-        out.append(svg("text", { x: (x1 + x2) / 2, y: (y1 + y2) / 2 - bend / 2 - 4, class: "w " + cls }, e.label));
+      const A = box(els[e.from]), B = box(els[e.to]);
+      const [x1, y1] = rim(A, B), [x2, y2] = rim(B, A);
+      const len = Math.hypot(x2 - x1, y2 - y1) || 1;
+      // boxes that nearly touch get no line: the outline and the panel already show the link
+      if ((x2 - x1) * (B.x - A.x) + (y2 - y1) * (B.y - A.y) <= 0 || len < 10) continue;
+      const bend = len < 60 ? 0 : Math.min(36, len / 7); // short hops stay straight
+      const cx = (x1 + x2) / 2 + ((y2 - y1) / len) * bend, cy = (y1 + y2) / 2 - ((x2 - x1) / len) * bend;
+      const cls = node === e.to ? "b" : node === e.from ? "u" : node ? "bg" : "";
+      const head = cls === "bg" ? "" : cls;
+      html += `<path class="w ${cls}" d="M${x1},${y1} Q${cx},${cy} ${x2},${y2}" marker-end="url(#arrow${head})"/>`;
+      // a label sits at the curve's middle, unless another label is already there
+      const lx = (x1 + 2 * cx + x2) / 4, ly = (y1 + 2 * cy + y2) / 4 - 4, half = e.label ? e.label.length * 3.3 + 4 : 0;
+      const clash = taken.some(([x, y, h]) => Math.abs(x - lx) < h + half && Math.abs(y - ly) < 14);
+      if (e.label && cls !== "bg" && !clash) {
+        taken.push([lx, ly, half]);
+        labels.push(svg("text", { x: lx, y: ly, class: "w " + cls }, e.label));
       }
     }
-    wires.replaceChildren(out);
+    wires.innerHTML = html;
+    wires.append(...labels);
   }
   let frame = 0;
   const redraw = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(draw); };
@@ -165,8 +180,8 @@
     return n ? `<button class="chip ${cls}" data-key="${esc(n.key)}">${esc(n.title)}</button>` : "";
   }
   function edgeChip(e, other, cls) {
-    const k = talk(e.key);
-    return `<button class="chip ${cls}" data-key="${esc(e.key)}">${esc(view.nodes[other].title)}${e.label ? " · " + esc(e.label) : ""}${k ? ` (${k})` : ""}</button>`;
+    const n = view.nodes[other];
+    return `<button class="chip ${cls}" data-key="${esc(n.key)}">${esc(n.title)}${e.label ? " · " + esc(e.label) : ""}</button>`;
   }
   const chips = (list, f) => (list.length ? `<div class="chips">${list.map(f).join("")}</div>` : `<div class="empty">none</div>`);
   function thread(key) {
@@ -190,17 +205,17 @@
     let html;
     if (!it) {
       const a = mode === "after" && S.after;
-      html = `<h2>${esc(a ? a.label || "After" : "Click a box or an arrow")}</h2>
+      html = `<h2>${esc(a ? a.label || "After" : "Click a box")}</h2>
         <p>${md(a ? a.summary || "" : S.summary || "")}</p>
         <p class="empty">${live
-          ? "Click a box or an arrow to read it and leave a note. The agent sees each note as you add it and answers here; <b>↻ Load the agent's changes</b> shows its answers in place."
-          : "Click a box or an arrow to read it and leave a note. Notes stay in this browser until you copy them to the agent with <b>Notes for the agent</b>."}</p>`;
+          ? "Click a box to read it, see its arrows and leave a note. The agent sees each note as you add it and answers here; <b>↻ Load the agent's changes</b> shows its answers in place."
+          : "Click a box to read it, see its arrows and leave a note. Notes stay in this browser until you copy them to the agent with <b>Notes for the agent</b>."}</p>`;
       if (a?.notes?.length) {
         html += `<h4>Your notes and where they land</h4><ol class="notes-list">${a.notes.map((x) =>
           `<li><div class="q">${md(x.q)}</div><div>${md(x.a)}</div><div class="chips">${(x.ids || []).map((id) => chip(id, "")).join("")}</div></li>`).join("")}</ol>`;
       }
       html += thread("page");
-    } else if (it.out) {
+    } else {
       const tag = it.status === "removed" ? "removed" : it.status === "new" ? "new" : it.tag;
       html = `${tag ? `<span class="tag">${esc(tag)}</span>` : ""}<h2>${esc(it.title)}</h2>
         <div class="file">${esc(it.file || "")}${it.size && mode === "before" ? " · " + esc(it.size) : ""}</div>
@@ -210,10 +225,6 @@
         ${it.status === "removed" ? "" : `<h4>Uses</h4>${chips(it.out, (e) => edgeChip(e, e.to, "u"))}
         <h4>Used by</h4>${chips(it.in, (e) => edgeChip(e, e.from, "b"))}`}
         ${thread(it.key)}`;
-    } else {
-      html = `<span class="tag">arrow</span><h2>${esc(view.nodes[it.from].title)} → ${esc(view.nodes[it.to].title)}</h2>
-        ${it.label ? `<div class="file">${esc(it.label)}</div>` : ""}<p>${md(it.desc || "")}</p>
-        <div class="chips">${chip(it.from, "u")}${chip(it.to, "b")}</div>${thread(it.key)}`;
     }
     p.innerHTML = html;
     const ta = p.querySelector("textarea.note");
@@ -248,13 +259,10 @@
     Object.values(els).forEach((e) => e.classList.remove("sel", "rel-u", "rel-b"));
     const it = picked();
     const mark = (id, cls) => els[id]?.classList.add(cls);
-    if (it?.out) {
+    if (it) {
       mark(it.id, "sel");
       it.out.forEach((e) => mark(e.to, "rel-u"));
       it.in.forEach((e) => mark(e.from, "rel-b"));
-    } else if (it) {
-      mark(it.from, "rel-u");
-      mark(it.to, "rel-b");
     }
     history.replaceState(null, "", "#" + mode + (sel ? "/" + sel : ""));
     panel();
@@ -265,7 +273,6 @@
   function label(key) {
     if (key === "page") return "the whole page";
     const id = key.slice(5);
-    if (key.startsWith("edge:")) return `arrow \`${id}\``;
     const n = [...S.nodes, ...(S.after?.add || [])].find((x) => x.id === id);
     return `box \`${id}\` (${n ? n.title : "?"}${n?.file ? ", " + n.file : ""})`;
   }
@@ -322,7 +329,7 @@
     <div id="toast"></div>`;
   $("#board").onclick = () => select(null);
   $("#notes-btn").onclick = () => {
-    if (!unsent().length) return toast(live ? "The agent already has every note" : "No notes yet: click a box or an arrow to add one");
+    if (!unsent().length) return toast(live ? "The agent already has every note" : "No notes yet: click a box to add one");
     $("#sheet-text").textContent = exportText();
     $("#sheet").showModal();
   };

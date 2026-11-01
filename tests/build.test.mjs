@@ -21,9 +21,11 @@ test("broken references are named", () => {
   bad.edges.push({ from: "x", to: "ghost" });
   bad.zones[2].columns[1].nodes.push("explore");
   bad.threads["node:ghost"] = [];
+  bad.threads["edge:build>page"] = []; // arrows take no notes
   const errors = check(bad).join("\n");
   assert.match(errors, /node x: unknown zone nowhere/);
   assert.match(errors, /edge x>ghost: unknown node/);
   assert.match(errors, /node explore is in two columns/);
   assert.match(errors, /threads: unknown key node:ghost/);
+  assert.match(errors, /threads: unknown key edge:build>page/);
 });

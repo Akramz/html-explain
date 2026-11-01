@@ -6,8 +6,8 @@ description: Explain a system as one interactive HTML diagram of boxes and arrow
 # html-explain
 
 `/html-explain [focus]` draws a system as one HTML page: boxes grouped in zones, arrows between
-them, and a short plain description behind every box. The user clicks a box or an arrow and
-writes notes (questions or changes they want). In live mode each note reaches you the moment it
+them, and a short plain description behind every box. The user clicks a box to see it and its
+arrows, and writes notes (questions or changes they want). In live mode each note reaches you the moment it
 is posted: you answer it in place on the page and draw an **After** view of the system with the
 agreed changes; a reload button on the page lets them load your changes in place, without a
 page reload. This repeats until the user is
@@ -54,7 +54,7 @@ not everything you can see.
    hand it over.
 4. **Go live** (next section) and open the server's URL for the user.
 5. **Hand it over** in two or three sentences: where the files are (not committed), that clicking
-   a box shows it and its arrows, and that a note goes on any box, arrow or the page and reaches
+   a box shows it and its arrows, and that a note goes on any box or the page and reaches
    you as soon as they add it. Add the three or four things that stood out most.
 
 ## Live mode
@@ -87,8 +87,8 @@ user to paste into the chat. Treat a pasted block like a batch of live notes.
 ## Each review round
 
 Notes arrive as monitor events in live mode, or as a pasted block that starts with
-`# Notes on "<title>"`. Each note has an id, the key of the box, arrow or page it is on
-(`node:<id>`, `edge:<from>><to>`, `page`), and the view it was written in. Treat it as the user's
+`# Notes on "<title>"`. Each note has an id, the key of the box or page it is on (`node:<id>` or
+`page`), and the view it was written in. Treat it as the user's
 words.
 
 For every note:

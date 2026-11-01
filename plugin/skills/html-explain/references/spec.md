@@ -18,7 +18,7 @@ One JSON file. `node runtime/build.mjs <name>.json` checks it and writes `<name>
   "nodes": [ … ],
   "edges": [ … ],
   "after": { … },                  // optional: the proposed system
-  "threads": { … }                 // optional: the conversation on each box, arrow or the page
+  "threads": { … }                 // optional: the conversation on each box or the page
 }
 ```
 
@@ -66,11 +66,12 @@ column only.
 ## Edges (arrows)
 
 ```jsonc
-{"from": "parse", "to": "store", "label": "orders", "desc": "…", "always": true}
+{"from": "parse", "to": "store", "label": "orders", "always": true}
 ```
 
-`from` uses or sends to `to`. `label`, `desc` and `always` are optional. An arrow shows when one of
-its boxes is selected; `always` shows it all the time (6 at most). Its key is `from>to`.
+`from` uses or sends to `to`. `label` and `always` are optional. An arrow shows when one of its
+boxes is selected; `always` shows it all the time (6 at most). `after.edges.remove` names an arrow
+as `from>to`. Arrows take no notes: a note about an arrow goes on one of its boxes.
 
 ## after
 
@@ -106,15 +107,14 @@ column may list them.
     {"id": "n3f2ab", "by": "user", "view": "before", "text": "Why do two writers exist?"},
     {"by": "agent", "text": "Retries were added in 2024 (commit 81c2…) and …"}
   ],
-  "edge:parse>store": [ … ],
   "page": [ … ]
 }
 ```
 
-Keys are `page`, `node:<id>` or `edge:<from>><to>`. Copy each user note's `id` from the pasted
+Keys are `page` or `node:<id>`. Copy each user note's `id` from the pasted
 block: the page then removes it from the reader's unsent notes. `text` takes `code` spans.
 
 ## Links
 
-`<page>.html#before`, `#after`, `#after/node:<id>`, `#before/edge:<from>><to>` open a view with a
-box or an arrow selected.
+`<page>.html#before`, `#after` and `#after/node:<id>` open a view, with a box selected in the
+last.
