@@ -82,6 +82,9 @@ textarea.note { width: 100%; min-height: 64px; font: inherit; padding: 6px 8px; 
 .notes-list li { margin-bottom: 10px; }
 .notes-list .q { font-weight: 600; }
 #bar { position: fixed; right: 20px; bottom: 18px; z-index: 20; display: flex; gap: 8px; }
+#reload { display: none; border-color: var(--agent); color: var(--agent); font-weight: 600; }
+#reload.on { display: inline-block; animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 5px #0a66c233; } }
 #sheet { position: fixed; inset: 0; background: #0006; z-index: 30; display: none; align-items: center; justify-content: center; }
 #sheet.on { display: flex; }
 #sheet .box { background: var(--card); border-radius: 12px; width: min(760px, 92vw); max-height: 84vh; display: flex; flex-direction: column; padding: 16px; gap: 10px; }

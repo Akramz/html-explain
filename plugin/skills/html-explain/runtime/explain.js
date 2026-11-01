@@ -1,18 +1,26 @@
 (() => {
-  const S = JSON.parse(document.getElementById("spec").textContent);
+  let S = JSON.parse(document.getElementById("spec").textContent);
   const KEY = "html-explain:" + S.id;
+  const token = document.body.dataset.token; // set by serve.mjs: notes go straight to the agent
+  const live = !!token;
+  const api = (path, opts = {}) => fetch(path, { ...opts, headers: { "X-HX-Token": token } });
   const $ = (q, el = document) => el.querySelector(q);
   const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
   const md = (s) => esc(s).replace(/`([^`]+)`/g, "<code>$1</code>");
-  const threads = S.threads || {};
-  const answered = new Set(Object.values(threads).flat().map((m) => m.id).filter(Boolean));
-
-  // notes the reader wrote and has not sent yet; one the agent filed in `threads` is dropped
+  // notes the agent has not answered yet: unsent, or sent in live mode; one filed in `threads` drops
   let pending = [];
   try { pending = JSON.parse(localStorage.getItem(KEY) || "[]"); } catch {}
-  pending = pending.filter((n) => !answered.has(n.id));
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(pending)); } catch {} };
-  save();
+  let threads = {};
+  function absorb(spec) {
+    S = spec;
+    threads = S.threads || {};
+    const answered = new Set(Object.values(threads).flat().map((m) => m.id).filter(Boolean));
+    pending = pending.filter((n) => !answered.has(n.id));
+    save();
+  }
+  absorb(S);
+  const drafts = {}; // half-written notes by key: a redraw from the agent keeps them
 
   let mode = "before";
   let sel = null; // "node:<id>", "edge:<from>><to>" or null
@@ -64,8 +72,9 @@
   }
 
   function render() {
+    if (mode === "after" && !S.after) mode = "before";
     document.body.classList.toggle("after", mode === "after");
-    document.querySelectorAll(".switch button").forEach((b) => b.classList.toggle("on", b.dataset.mode === mode));
+    header();
     view = build(mode);
     els = {};
     const board = $("#board");
@@ -166,20 +175,28 @@
   function thread(key) {
     const msgs = (threads[key] || []).map((m) =>
       `<div class="msg ${m.by === "agent" ? "agent" : "user"}"><span class="who">${m.by === "agent" ? "Agent" : "You"}${m.view ? " · " + esc(m.view) : ""}</span>${md(m.text)}</div>`);
-    const mine = pending.filter((n) => n.el === key).map((n) =>
-      `<div class="msg pending"><button class="x" data-del="${esc(n.id)}" title="Delete">✕</button><span class="who">You · not sent yet</span>${md(n.text)}</div>`);
+    const mine = pending.filter((n) => n.el === key).map((n) => n.sent
+      ? `<div class="msg pending"><span class="who">You · sent, the agent is on it</span>${md(n.text)}</div>`
+      : `<div class="msg pending"><button class="x" data-del="${esc(n.id)}" title="Delete">✕</button><span class="who">You · not sent yet</span>${md(n.text)}</div>`);
     return `<h4>Notes and questions</h4>${msgs.join("")}${mine.join("")}
-      <textarea class="note" placeholder="A question, a change you want, or a reply…"></textarea>
+      <textarea class="note" data-for="${esc(key)}" placeholder="A question, a change you want, or a reply…"></textarea>
       <div style="display:flex;gap:6px;margin-top:6px"><button class="btn primary" data-add="${esc(key)}">Add note</button></div>`;
   }
   function panel() {
     const p = $("#panel");
+    const old = p.querySelector("textarea.note");
+    const typing = old && document.activeElement === old;
+    const caret = typing ? [old.selectionStart, old.selectionEnd] : null;
+    if (old) drafts[old.dataset.for] = old.value;
+    const scroll = p.scrollTop;
     let html;
     if (!sel) {
       const a = mode === "after" && S.after;
       html = `<h2>${esc(a ? a.label || "After" : "Click a box or an arrow")}</h2>
         <p>${md(a ? a.summary || "" : S.summary || "")}</p>
-        <p class="empty">Click a box or an arrow to read it and leave a note. Notes stay in this browser until you copy them to the agent with <b>Notes for the agent</b>.</p>`;
+        <p class="empty">${live
+          ? "Click a box or an arrow to read it and leave a note. The agent sees each note as you add it and answers here; the page updates in place."
+          : "Click a box or an arrow to read it and leave a note. Notes stay in this browser until you copy them to the agent with <b>Notes for the agent</b>."}</p>`;
       if (a && a.notes && a.notes.length) {
         html += `<h4>Your notes and where they land</h4><ol class="notes-list">${a.notes.map((x) =>
           `<li><div class="q">${md(x.q)}</div><div>${md(x.a)}</div><div class="chips">${(x.ids || []).map((id) => chip(id, "")).join("")}</div></li>`).join("")}</ol>`;
@@ -203,12 +220,30 @@
         <div class="chips">${chip(e.from, "u")}${chip(e.to, "b")}</div>${thread(sel)}`;
     }
     p.innerHTML = html;
+    const ta = p.querySelector("textarea.note");
+    ta.value = drafts[ta.dataset.for] || "";
+    ta.oninput = () => (drafts[ta.dataset.for] = ta.value);
+    if (typing && old.dataset.for === ta.dataset.for) {
+      ta.focus();
+      ta.setSelectionRange(...caret);
+    }
+    p.scrollTop = scroll;
     p.querySelectorAll("[data-key]").forEach((b) => (b.onclick = (ev) => { ev.stopPropagation(); select(b.dataset.key); }));
     p.querySelectorAll("[data-del]").forEach((b) => (b.onclick = () => { pending = pending.filter((n) => n.id !== b.dataset.del); save(); render(); }));
-    p.querySelectorAll("[data-add]").forEach((b) => (b.onclick = () => {
-      const text = p.querySelector("textarea.note").value.trim();
+    p.querySelectorAll("[data-add]").forEach((b) => (b.onclick = async () => {
+      const text = ta.value.trim();
       if (!text) return;
-      pending.push({ id: "n" + Math.random().toString(36).slice(2, 7), el: b.dataset.add, view: mode, text });
+      const note = { id: "n" + Math.random().toString(36).slice(2, 7), el: b.dataset.add, view: mode, text };
+      if (live) {
+        try {
+          const r = await api("/api/notes", { method: "POST", body: JSON.stringify(note) });
+          note.sent = r.ok;
+        } catch {}
+        if (!note.sent) toast("Could not reach the agent's server: kept here, copy it with Notes for the agent");
+      }
+      pending.push(note);
+      drafts[b.dataset.add] = "";
+      ta.value = "";
       save();
       render();
     }));
@@ -245,7 +280,7 @@
   }
   function exportText() {
     const by = {};
-    for (const n of pending) (by[n.el] ||= []).push(n);
+    for (const n of unsent()) (by[n.el] ||= []).push(n);
     const lines = [`# Notes on "${S.title}" (${S.id}, round ${S.round || 0})`, "",
       "File each note in `threads` under its key with its id, answer it there, and update `after`.", ""];
     for (const [key, notes] of Object.entries(by)) {
@@ -256,8 +291,12 @@
     }
     return lines.join("\n");
   }
+  const unsent = () => pending.filter((n) => !n.sent);
   function refreshBar() {
-    $("#notes-btn").textContent = `Notes for the agent (${pending.length})`;
+    const waiting = pending.length - unsent().length;
+    $("#notes-btn").textContent = live && !unsent().length
+      ? `Live · the agent reads each note${waiting ? ` (${waiting} waiting)` : ""}`
+      : `Notes for the agent (${unsent().length})`;
   }
   function toast(t) {
     const el = $("#toast");
@@ -266,8 +305,8 @@
     setTimeout(() => (el.style.display = "none"), 1800);
   }
 
+  let header;
   function shell() {
-    document.title = S.title.replace(/`/g, "");
     const legend = [
       ["background:var(--part);border-color:var(--part)", "key part"],
       ["border:2px solid var(--coreline)", "main step"],
@@ -279,25 +318,36 @@
       ["background:#fdecea;border:1px dashed var(--flag)", "removed"],
       ["background:#eef8f2;border:1px dashed var(--new)", "new"],
     ];
-    document.body.innerHTML = `
-      <header><h1>${md(S.title)}</h1>
+    header = () => {
+      document.title = S.title.replace(/`/g, "");
+      $("header").innerHTML = `<h1>${md(S.title)}</h1>
         ${S.after ? `<span class="switch"><button data-mode="before">Before</button><button data-mode="after">${esc(S.after.label || "After")}</button></span>` : ""}
         ${S.subtitle ? `<span class="sub">${md(S.subtitle)}</span>` : ""}
         <span class="legend">${legend.map(([s, t]) => `<span><span class="sw" style="${s}"></span>${t}</span>`).join("")}
           ${after.map(([s, t]) => `<span class="after-only"><span class="sw" style="${s}"></span>${t}</span>`).join("")}
-          <span style="color:var(--uses)">━ uses</span><span style="color:var(--usedby)">┅ used by</span></span>
-      </header>
+          <span style="color:var(--uses)">━ uses</span><span style="color:var(--usedby)">┅ used by</span></span>`;
+      document.querySelectorAll(".switch button").forEach((b) => (b.onclick = () => { mode = b.dataset.mode; render(); }));
+      document.querySelectorAll(".switch button").forEach((b) => b.classList.toggle("on", b.dataset.mode === mode));
+    };
+    document.body.innerHTML = `
+      <header></header>
       <div class="wrap"><div id="board"><svg id="wires"></svg></div><aside id="panel"></aside></div>
-      <div id="bar"><button class="btn primary" id="notes-btn"></button></div>
+      <div id="bar"><button class="btn" id="reload" title="Load the agent's changes into this page">↻ Load the agent's changes</button><button class="btn primary" id="notes-btn"></button></div>
       <div id="sheet"><div class="box"><b>Notes for the agent</b>
         <span class="empty">Copy this and paste it to the agent. It answers each note in place and updates the After view.</span>
         <pre id="sheet-text"></pre>
         <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn" id="sheet-close">Close</button><button class="btn primary" id="sheet-copy">Copy</button></div></div></div>
       <div id="toast"></div>`;
-    document.querySelectorAll(".switch button").forEach((b) => (b.onclick = () => { mode = b.dataset.mode; render(); }));
     $("#board").onclick = () => select(null);
+    $("#reload").onclick = () => {
+      if (!incoming) return;
+      absorb(incoming);
+      incoming = null;
+      $("#reload").classList.remove("on");
+      render();
+    };
     $("#notes-btn").onclick = () => {
-      if (!pending.length) return toast("No notes yet: click a box or an arrow to add one");
+      if (!unsent().length) return toast(live ? "The agent already has every note" : "No notes yet: click a box or an arrow to add one");
       $("#sheet-text").textContent = exportText();
       $("#sheet").classList.add("on");
     };
@@ -317,4 +367,28 @@
   if (m === "after" && S.after) mode = "after";
   sel = rest.join("/") || null;
   render();
+
+  // live mode: the agent's saves wait behind the reload icon; a click loads them in place, and the
+  // page itself never reloads, so a half-written note survives
+  let incoming = null;
+  function offer(spec) {
+    incoming = JSON.stringify(spec) === JSON.stringify(S) ? null : spec;
+    $("#reload").classList.toggle("on", !!incoming);
+  }
+  async function follow() {
+    let since = 0;
+    for (;;) {
+      try {
+        const r = await api("/api/spec?since=" + since);
+        if (r.status === 200) {
+          const d = await r.json();
+          since = d.mtime;
+          offer(d.spec);
+        }
+      } catch {
+        await new Promise((ok) => setTimeout(ok, 2000));
+      }
+    }
+  }
+  if (live) follow();
 })();

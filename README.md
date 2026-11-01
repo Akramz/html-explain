@@ -31,14 +31,20 @@ The page is built by a small Node script, so you need [Node.js](https://nodejs.o
 1. The agent reads the code and opens the page. Click a box: the panel says what it does, what
    it uses and what uses it, and its arrows appear. Red dots mark things that may not fit a
    simple design.
-2. Leave notes on any box, arrow or the page. They stay in your browser until you press
-   **Notes for the agent**, copy, and paste them into the chat.
-3. The agent answers every note in its thread, agrees or pushes back with a reason, and updates
-   the **After** view. Flip Before / After to compare. Keep talking in the threads.
+2. Leave notes on any box, arrow or the page. The page is served live from your machine: each
+   note reaches the agent as soon as you add it, and it starts working on it.
+3. The agent answers the note in its thread, agrees or pushes back with a reason, and updates
+   the **After** view. **↻ Load the agent's changes** appears; click it to see them in place,
+   without losing what you are typing. Flip Before / After to compare. Keep talking in the
+   threads.
 4. When the After view is what you want, ask the agent to build it.
 
 The spec (`<name>.json`) is the source and the page (`<name>.html`) is one self-contained file
-you can open, share or commit. See [the spec reference](plugin/skills/html-explain/references/spec.md)
+you can open, share or commit. Opened as a file, the page works offline: notes stay in your
+browser until **Notes for the agent** copies them for you to paste into the chat.
+
+The live server listens on `127.0.0.1` only and answers only the page it served: that page
+carries a random token, and calls without it, from another site or for another host are refused. See [the spec reference](plugin/skills/html-explain/references/spec.md)
 and [the example](plugin/skills/html-explain/examples/html-explain.json), built as
 [docs/example.html](docs/example.html).
 
