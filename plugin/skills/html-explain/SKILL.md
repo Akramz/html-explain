@@ -99,9 +99,7 @@ For every note:
    user's unsent list once its id is in `threads`, so copy the id exactly.
 3. **Answer, then act on it.**
    - A question: answer it plainly, in a few sentences.
-   - A change the user wants: agree and put it in `after`, or disagree with a reason and leave
-     `after` alone. If it is a real fork with no clear answer, say so in the reply and give
-     your recommendation. Do not agree to something you think is wrong.
+   - A change the user wants: put it in `after`.
 4. **Update `after`** (see `references/spec.md`): patch each box that changes (`status`,
    `change`, `desc`), add new boxes and arrows, remove what goes, and add one line to
    `after.notes` per note: the note in a few words, where it lands, the boxes it touches. Clear a
