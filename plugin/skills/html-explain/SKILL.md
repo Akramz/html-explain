@@ -38,22 +38,20 @@ not everything you can see.
    - Write every `desc` for someone new to the code: one to three short sentences on what it
      does for the system, in plain English, no jargon a newcomer would not know.
    - Arrows are real relations: calls, imports, data that flows. Label only the ones a label
-     helps. Mark `always` only the few arrows of the main flow; the rest show when their box is
-     selected.
+     helps. Mark `always` only the main flow, 6 arrows at most (the build refuses more); the
+     rest show when their box is selected. Columns with `arrows` already show a pipeline's order.
    - A `note` (a red dot) marks what may not fit a simple, general design: a special case for
      one caller, duplicated logic, a name that says nothing, code nothing calls. Notes are
      observations for the user, not decisions.
-3. **Build and look at it.** `node <skill dir>/runtime/build.mjs <name>.json` checks the spec and
+3. **Build and look at it.** Save the spec where the user says, else in `docs/explain/<name>.json`
+   (create the folder). `node <skill dir>/runtime/build.mjs <name>.json` checks the spec and
    writes `<name>.html` next to it. Fix every error it prints. Open the page for the user
    (`open` on macOS, `xdg-open` on Linux). If Chrome is installed, take a headless screenshot
    (`--screenshot`, with `#before` or `#after/node:<id>` in the URL) and look at it before you
    hand it over.
-4. **Hand it over** in two or three sentences: where the page is, that clicking a box shows
+4. **Hand it over** in two or three sentences: where the page is (not committed), that clicking a box shows
    it and its arrows, that a note goes on any box, arrow or the page, and that **Notes for the
    agent** copies them for you. Add the three or four things that stood out most.
-
-Save the spec and the page where the user says. Otherwise use `docs/explain/<name>.json` in the
-project, and say the files are not committed.
 
 ## Each review round
 

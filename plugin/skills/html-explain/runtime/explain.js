@@ -267,7 +267,7 @@
   }
 
   function shell() {
-    document.title = S.title;
+    document.title = S.title.replace(/`/g, "");
     const legend = [
       ["background:var(--part);border-color:var(--part)", "key part"],
       ["border:2px solid var(--coreline)", "main step"],
@@ -280,7 +280,7 @@
       ["background:#eef8f2;border:1px dashed var(--new)", "new"],
     ];
     document.body.innerHTML = `
-      <header><h1>${esc(S.title)}</h1>
+      <header><h1>${md(S.title)}</h1>
         ${S.after ? `<span class="switch"><button data-mode="before">Before</button><button data-mode="after">${esc(S.after.label || "After")}</button></span>` : ""}
         ${S.subtitle ? `<span class="sub">${md(S.subtitle)}</span>` : ""}
         <span class="legend">${legend.map(([s, t]) => `<span><span class="sw" style="${s}"></span>${t}</span>`).join("")}

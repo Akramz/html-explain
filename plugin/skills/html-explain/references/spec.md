@@ -68,7 +68,7 @@ column only.
 ```
 
 `from` uses or sends to `to`. `label`, `desc` and `always` are optional. An arrow shows when one of
-its boxes is selected; `always` shows it all the time (keep those few). Its key is `from>to`.
+its boxes is selected; `always` shows it all the time (6 at most). Its key is `from>to`.
 
 ## after
 

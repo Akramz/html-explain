@@ -35,6 +35,8 @@ export function check(spec) {
     }
     need(!z.span || (z.span >= 1 && z.span <= 12), `zone ${z.id}: span is 1 to 12`);
   }
+  const always = (spec.edges || []).filter((e) => e.always).length;
+  need(always <= 6, `${always} arrows are \`always\`: keep it to the main flow, 6 at most`);
   const edges = new Set();
   for (const e of [...(spec.edges || []), ...((after.edges && after.edges.add) || [])]) {
     need(ids.has(e.from) && ids.has(e.to), `edge ${e.from}>${e.to}: unknown node`);
@@ -62,7 +64,7 @@ export function page(spec) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${spec.title.replace(/</g, "&lt;")}</title>
+<title>${spec.title.replace(/</g, "&lt;").replace(/`/g, "")}</title>
 <style>
 ${css}</style>
 </head>
