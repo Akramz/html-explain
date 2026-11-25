@@ -17,7 +17,7 @@ test("the live server takes notes only from its own page", async (t) => {
   const url = await new Promise((ok) => server.stdout.once("data", (d) => ok(String(d).trim())));
   const html = await (await fetch(url)).text();
   const token = JSON.parse(html.match(/id="live">([^<]+)</)[1]).token;
-  const note = JSON.stringify({ id: "n1", el: "page", view: "before", text: "hello" });
+  const note = JSON.stringify({ id: "n1", el: "page", view: "current", text: "hello" });
   const post = (headers) => fetch(url + "api/notes", { method: "POST", body: note, headers });
   assert.equal((await post({})).status, 403);
   assert.equal((await post({ "X-HX-Token": token, Origin: "http://evil.example" })).status, 403);

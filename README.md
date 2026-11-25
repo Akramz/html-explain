@@ -1,15 +1,20 @@
 # html-explain
 
-`/html-explain` draws a system as one interactive HTML page: boxes grouped by role, arrows
-between them, and a short plain description behind every box. You click any box and leave
-notes (questions or changes you want); each reaches your agent as you post it. It answers
-each note in place on the page and draws an **After** view of the system with the changes you
-agreed on.
-Rounds repeat until you are happy; then the agent can build the After view.
+`/html-explain` draws a system as one interactive HTML page with levels you open one at a time.
+The top level shows the main parts as boxes and arrows; a box with parts inside has a ▸ number
+that opens it. Each box has a short plain description, its files, and the agent's findings.
 
-Use it to understand a codebase or one part of it, or to redesign it with your agent.
+- **Current and Proposed.** Flip to the Proposed view to see the system after the changes you
+  agreed on: added boxes and arrows in green, changed ones in orange, removed ones in red. Each
+  box counts the changes inside it, and the Design log lists every decision.
+- **Mark reviewed.** Select a box and mark it reviewed: it leaves the outline and the diagram
+  until you turn on **Show reviewed**, so what is left is what you still need to look at.
+- **Notes on any box.** Write a question or a change you want on a box or on the page. Each note
+  reaches your agent as you post it. The agent answers in the box's thread and updates the
+  Proposed view; the page redraws in place, without losing what you are typing.
 
-![The example page: the After view, a changed box selected, its conversation in the panel.](docs/screenshot.png)
+Use it to understand a codebase or one part of it, or to redesign it with your agent, round by
+round, then have the agent build the Proposed view.
 
 ## Install
 
@@ -29,29 +34,29 @@ The page is built by a small Node script, so you need [Node.js](https://nodejs.o
 /html-explain how a request reaches the database
 ```
 
-1. The agent reads the code and opens the page. Click a box: the panel says what it does, what
-   it uses and what uses it, and its arrows appear. Red dots mark things that may not fit a
-   simple design.
-2. Leave notes on any box or the page. The page is served live from your machine: each
-   note reaches the agent as soon as you add it, and it starts working on it.
-3. The agent answers the note in its thread, agrees or pushes back with a reason, and updates
-   the **After** view. The page redraws in place as it saves, without losing what you are
-   typing. Flip Before / After to compare. Keep talking in the threads.
-4. When the After view is what you want, ask the agent to build it.
+1. The agent reads the code, writes a spec and opens the page. Click a box to select it; click
+   its ▸ number (or double-click it) to open it. Esc goes back up; C and P switch views.
+2. Leave notes on any box. The page is served live from your machine: each note reaches the
+   agent as soon as you add it.
+3. The agent answers each note in its thread and draws the agreed changes in the Proposed view.
+   Mark boxes reviewed as you finish with them.
+4. When the Proposed view is what you want, ask the agent to build it.
 
 The spec (`<name>.json`) is the source and the page (`<name>.html`) is one self-contained file
 you can open, share or commit. Opened as a file, the page works offline: notes stay in your
-browser until **Notes for the agent** copies them for you to paste into the chat.
+browser until **Notes for the agent** copies them for you to paste into the chat. Live mode needs
+an agent that can watch a background command (Claude Code's Monitor); elsewhere, paste the notes.
 
 The live server listens on `127.0.0.1` only and answers only the page it served: that page
-carries a random token, and calls without it, from another site or for another host are refused. See [the spec reference](plugin/skills/html-explain/references/spec.md)
-and [the example](plugin/skills/html-explain/examples/html-explain.json), built as
-[docs/example.html](docs/example.html).
+carries a random token, and calls without it, from another site or for another host are
+refused. See [the spec reference](plugin/skills/html-explain/references/spec.md) and
+[the example](plugin/skills/html-explain/examples/html-explain.json), which explains
+html-explain itself, built as [docs/example.html](docs/example.html).
 
 ## Develop
 
 ```console
-make check     # runtime syntax, the example spec, and the build tests
+make check     # runtime syntax, the example spec, and the tests
 make example   # rebuild docs/example.html
 ```
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Check an html-explain spec and build it into one self-contained HTML page.
 //   node build.mjs <spec.json> [-o page.html] [--check]
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
@@ -9,50 +9,97 @@ import { parseArgs } from "node:util";
 const here = dirname(fileURLToPath(import.meta.url));
 const CSS = readFileSync(join(here, "explain.css"), "utf8");
 const JS = readFileSync(join(here, "explain.js"), "utf8");
+const KINDS = ["module", "store", "part", "actor", "external"];
+const W = 220, H = 78, SX = 1.36, SY = 1.5;
+
+// The box at `path` under `root`, or null. The page runs this and applyOps too.
+export function levelOf(root, path) {
+  let n = root;
+  for (const id of path) {
+    n = (n.children?.nodes || []).find((x) => x.id === id);
+    if (!n) return null;
+  }
+  return n;
+}
+
+// The proposed tree: a copy of `root` with the ops applied in order.
+export function applyOps(root, ops) {
+  const tree = JSON.parse(JSON.stringify(root));
+  const errors = [];
+  ops.forEach((o, i) => {
+    const at = Array.isArray(o.at) ? o.at : [];
+    const where = `proposed.ops[${i}] (${o.op} at [${at.join(", ")}])`;
+    const n = levelOf(tree, at);
+    if (!n) return errors.push(`${where}: no box at that path`);
+    const L = (n.children ??= { nodes: [], edges: [] });
+    L.edges ??= [];
+    const node = (id) => L.nodes.find((x) => x.id === id);
+    const edge = () => L.edges.find((e) => e.from === o.from && e.to === o.to);
+    if (o.op === "add") {
+      if (!o.node?.id || node(o.node.id)) return errors.push(`${where}: node needs a new id`);
+      L.nodes.push(o.node);
+    } else if (o.op === "remove") {
+      if (!node(o.id)) return errors.push(`${where}: no box ${o.id}`);
+      L.nodes = L.nodes.filter((x) => x.id !== o.id);
+      L.edges = L.edges.filter((e) => e.from !== o.id && e.to !== o.id);
+    } else if (o.op === "change") {
+      if (!node(o.id)) return errors.push(`${where}: no box ${o.id}`);
+      Object.assign(node(o.id), o.set);
+    } else if (o.op === "edge") {
+      if (!o.edge?.from || !o.edge?.to) return errors.push(`${where}: edge needs from and to`);
+      L.edges.push(o.edge);
+    } else if (o.op === "unedge") {
+      if (!edge()) return errors.push(`${where}: no arrow ${o.from}>${o.to}`);
+      L.edges = L.edges.filter((e) => !(e.from === o.from && e.to === o.to));
+    } else if (o.op === "reedge") {
+      if (!edge()) return errors.push(`${where}: no arrow ${o.from}>${o.to}`);
+      Object.assign(edge(), o.set);
+    } else {
+      errors.push(`${where}: op is add, remove, change, edge, unedge or reedge`);
+    }
+  });
+  return { tree, errors };
+}
+
+function checkLevel(level, path, need, keys) {
+  const where = path.length ? path.join("/") : "root";
+  const nodes = level?.nodes;
+  if (!need(Array.isArray(nodes) && nodes.length, `${where}: a level needs nodes`)) return;
+  const ids = new Set();
+  for (const n of nodes) {
+    const p = [...path, n.id].join("/");
+    need(typeof n.id === "string" && /^[A-Za-z0-9_-]+$/.test(n.id), `${where}: node id ${n.id}: letters, digits, _ and -`);
+    need(!ids.has(n.id), `${where}: node id ${n.id} is repeated`);
+    ids.add(n.id);
+    need(n.label, `${p}: label is required`);
+    need(KINDS.includes(n.kind), `${p}: kind is one of ${KINDS.join(", ")}`);
+    need(Number.isFinite(n.x) && Number.isFinite(n.y), `${p}: x and y are numbers`);
+    keys.add("node:" + p);
+    if (n.children) checkLevel(n.children, [...path, n.id], need, keys);
+  }
+  for (const e of level.edges || []) need(ids.has(e.from) && ids.has(e.to), `${where}: edge ${e.from}>${e.to}: unknown box`);
+  for (let i = 0; i < nodes.length; i++) {
+    for (let j = i + 1; j < nodes.length; j++) {
+      const a = nodes[i], b = nodes[j];
+      const over = Math.abs(a.x - b.x) * SX < W + 10 && Math.abs(a.y - b.y) * SY < H + 10;
+      need(!over, `${where}: boxes ${a.id} and ${b.id} overlap (move x or y)`);
+    }
+  }
+}
 
 export function check(spec) {
   const errors = [];
   const need = (ok, msg) => ok || errors.push(msg);
   need(typeof spec.id === "string" && /^[a-z0-9-]+$/.test(spec.id), "id: lowercase letters, digits and dashes");
   need(typeof spec.title === "string" && spec.title, "title is required");
-  const zones = new Map((spec.zones || []).map((z) => [z.id, z]));
-  need(zones.size === (spec.zones || []).length, "zone ids must be unique");
-  const after = spec.after || {};
-  const ids = new Set();
-  for (const n of [...(spec.nodes || []), ...(after.add || [])]) {
-    need(n.id && !ids.has(n.id), `node id missing or repeated: ${n.id}`);
-    ids.add(n.id);
-    need(zones.has(n.zone), `node ${n.id}: unknown zone ${n.zone}`);
-    need(n.title && n.desc, `node ${n.id}: title and desc are required`);
+  const keys = new Set(["page"]);
+  checkLevel(spec.root, [], need, keys);
+  if (spec.proposed && !errors.length) {
+    const { tree, errors: opErrors } = applyOps({ children: spec.root }, spec.proposed.ops || []);
+    errors.push(...opErrors);
+    checkLevel(tree.children, [], (ok, msg) => need(ok, "proposed: " + msg), keys);
   }
-  const placed = new Set();
-  for (const z of zones.values()) {
-    for (const c of z.columns || []) {
-      for (const id of c.nodes || []) {
-        need(ids.has(id), `zone ${z.id}: column lists unknown node ${id}`);
-        need(!placed.has(id), `zone ${z.id}: node ${id} is in two columns`);
-        placed.add(id);
-      }
-    }
-    need(!z.span || (z.span >= 1 && z.span <= 12), `zone ${z.id}: span is 1 to 12`);
-  }
-  const always = (spec.edges || []).filter((e) => e.always).length;
-  need(always <= 6, `${always} arrows are \`always\`: keep it to the main flow, 6 at most`);
-  const edges = new Set();
-  for (const e of [...(spec.edges || []), ...(after.edges?.add || [])]) {
-    need(ids.has(e.from) && ids.has(e.to), `edge ${e.from}>${e.to}: unknown node`);
-    edges.add(`${e.from}>${e.to}`);
-  }
-  for (const [id, p] of Object.entries(after.nodes || {})) {
-    need(ids.has(id), `after.nodes: unknown node ${id}`);
-    need(["changed", "removed", "same", undefined].includes(p.status), `after.nodes.${id}: status is changed, removed or same`);
-  }
-  for (const id of after.edges?.remove || []) need(edges.has(id), `after.edges.remove: unknown edge ${id}`);
-  for (const x of after.notes || []) for (const id of x.ids || []) need(ids.has(id), `after.notes: unknown node ${id}`);
-  for (const key of Object.keys(spec.threads || {})) {
-    const ok = key === "page" || (key.startsWith("node:") && ids.has(key.slice(5)));
-    need(ok, `threads: unknown key ${key} (page or node:<id>)`);
-  }
+  for (const key of Object.keys(spec.threads || {})) need(keys.has(key), `threads: unknown key ${key} (page or node:<path>)`);
   return errors;
 }
 
@@ -74,20 +121,23 @@ export function page(spec, live) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${spec.title.replace(/[<`]/g, "")}</title>
+<title>${spec.title.replace(/[<&]/g, "")}</title>
 <style>
 ${CSS}</style>
 </head>
 <body>
 <script type="application/json" id="spec">${json(spec)}</script>
 ${live ? `<script type="application/json" id="live">${json(live)}</script>\n` : ""}<script>
+const W = ${W}, H = ${H}, SX = ${SX}, SY = ${SY};
+${levelOf}
+${applyOps}
 ${JS}</script>
 </body>
 </html>
 `;
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const { values, positionals } = parseArgs({
     allowPositionals: true,
     options: { out: { type: "string", short: "o" }, check: { type: "boolean" } },
@@ -102,8 +152,9 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     console.error(errors.map((e) => "error: " + e).join("\n"));
     process.exit(1);
   }
+  const count = (L) => L.nodes.reduce((s, n) => s + 1 + (n.children ? count(n.children) : 0), 0);
   if (values.check) {
-    console.log(`ok: ${spec.nodes.length} boxes, ${(spec.edges || []).length} arrows`);
+    console.log(`ok: ${count(spec.root)} boxes, ${(spec.proposed?.ops || []).length} proposed ops`);
   } else {
     const out = values.out || src.replace(/\.json$/, "") + ".html";
     writeFileSync(out, page(spec));

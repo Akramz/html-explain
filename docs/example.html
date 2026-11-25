@@ -3,478 +3,622 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>How html-explain works</title>
+<title>html-explain</title>
 <style>
-:root {
-  --ink: #1d1d1f; --mute: #6e6e73; --line: #d2d2d7; --bg: #f5f5f7; --card: #fff;
-  --core: #fff6e0; --coreline: #e0a800; --part: #c98a00; --uses: #0a66c2; --usedby: #8e44ad;
-  --flag: #e5534b; --new: #1f7a52; --agent: #0a66c2; --wire: #8e8e93; --wire-dim: #c7c7cc;
+:root{
+  --bg:#f6f7f9; --ink:#1d2330; --muted:#6b7385; --line:#d9dde5;
+  --module:#3b6fd8; --store:#0f8a8a; --part:#8a4fd1; --actor:#4a5568; --ext:#8b93a3;
+  --add:#23955a; --del:#d4483f; --chg:#d08b12;
 }
-* { box-sizing: border-box; }
-body { margin: 0; font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: var(--ink); background: var(--bg); }
-code { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; background: #0000000d; padding: 0 3px; border-radius: 3px; }
-header { padding: 16px 24px 8px; display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
-h1 { font-size: 20px; margin: 0; }
-.sub { color: var(--mute); }
-.legend { display: flex; gap: 14px; color: var(--mute); font-size: 12px; align-items: center; flex-wrap: wrap; }
-.sw { display: inline-block; width: 14px; height: 14px; border-radius: 3px; vertical-align: -2px; margin-right: 4px; border: 1px solid var(--line); }
-.sw.part { background: var(--part); border-color: var(--part); }
-.sw.step { border: 2px solid var(--coreline); }
-.sw.dot { background: var(--flag); border-color: var(--flag); border-radius: 50%; width: 8px; height: 8px; }
-.sw.chg { border-left: 4px solid var(--uses); }
-.sw.gone { background: #fdecea; border: 1px dashed var(--flag); }
-.sw.new { background: #eef8f2; border: 1px dashed var(--new); }
-.legend .u { color: var(--uses); }
-.legend .b { color: var(--usedby); }
-.switch { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--card); }
-.switch button { border: 0; background: none; padding: 5px 14px; font: inherit; cursor: pointer; color: var(--mute); }
-.switch button.on { background: var(--ink); color: #fff; }
-.wrap { display: flex; gap: 16px; padding: 8px 24px 80px; align-items: flex-start; }
-#board { position: relative; flex: 1; display: grid; gap: 14px; grid-template-columns: repeat(12, 1fr); }
-#wires { position: absolute; inset: 0; overflow: visible; z-index: 7; pointer-events: none; }
-#wires path.w { fill: none; stroke: var(--wire); stroke-width: 1.8; stroke-linecap: round; }
-#wires path.u { stroke: var(--uses); stroke-width: 2.2; }
-#wires path.b { stroke: var(--usedby); stroke-width: 2.2; stroke-dasharray: 6 4; }
-#wires .head { fill: var(--wire); }
-#wires .head.u { fill: var(--uses); }
-#wires .head.b { fill: var(--usedby); }
-#wires text.w { font-size: 11px; font-weight: 600; text-anchor: middle; fill: var(--mute); paint-order: stroke; stroke: var(--card); stroke-width: 4px; stroke-linejoin: round; }
-#wires text.u { fill: var(--uses); }
-#wires text.b { fill: var(--usedby); }
-/* with a box selected, the always-on arrows that are not its own fade back */
-#board.focus #wires path.w:not(.u):not(.b) { stroke: var(--wire-dim); stroke-width: 1.2; }
-#board.focus #wires text.w:not(.u):not(.b) { display: none; }
-.zone { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px 12px; }
-.zone h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--mute); margin: 0 0 8px; font-weight: 600; }
-.zone .why { font-size: 12px; color: var(--mute); margin: -4px 0 8px; }
-.zone.core { background: var(--core); border: 2px solid var(--coreline); }
-.zone.core h2, .zone.core .cols h3, .zone.core .flowline { color: #8a5d00; }
-.zone.outside { border: 1px dashed var(--new); background: #f7fcf9; }
-.nodes { display: flex; flex-wrap: wrap; gap: 8px; }
-.cols { display: grid; gap: 10px 22px; align-items: start; }
-.col { display: flex; flex-direction: column; gap: 8px; position: relative; }
-.col h3 { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--mute); }
-.col .arrow { position: absolute; right: -19px; top: 50%; color: var(--coreline); font-size: 18px; font-weight: 700; }
-.flowline { text-align: center; color: var(--mute); font-size: 12px; border-top: 2px dashed var(--coreline); padding-top: 4px; margin-top: 10px; }
-.node { position: relative; z-index: 6; cursor: pointer; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; min-width: 112px; transition: opacity .15s, box-shadow .15s; }
-.node:hover { box-shadow: 0 1px 6px rgba(0,0,0,.12); }
-.node .t { font-weight: 600; font-size: 13px; }
-.node .f { font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--mute); display: flex; justify-content: space-between; gap: 8px; }
-.node.flag { padding-right: 18px; }
-.node.flag::after { content: ""; position: absolute; top: 5px; right: 5px; width: 7px; height: 7px; border-radius: 50%; background: var(--flag); }
-.node .talk { position: absolute; bottom: -7px; right: -7px; background: var(--agent); color: #fff; font-size: 10px; font-weight: 700; border-radius: 9px; padding: 0 5px; line-height: 16px; }
-.node .talk.pending { background: var(--flag); }
-.node.part { background: var(--part); border-color: var(--part); color: #fff; }
-.node.part .f { color: #fff3d6; }
-.node.step { border: 2px solid var(--coreline); }
-.node.chg { border-left: 4px solid var(--uses); }
-.node.gone { background: #fdecea; border: 1px dashed var(--flag); color: #b42318; }
-.node.gone .t { text-decoration: line-through; }
-.node.gone .f { color: #b42318; }
-.node.new { border: 1px dashed var(--new); background: #eef8f2; }
-#board.focus .node { opacity: .25; }
-#board.focus .node.sel, #board.focus .node.rel-u, #board.focus .node.rel-b { opacity: 1; }
-.node.sel { box-shadow: 0 0 0 3px var(--ink); }
-.node.rel-u { box-shadow: 0 0 0 2px var(--uses); }
-.node.rel-b { box-shadow: 0 0 0 2px var(--usedby); }
-.after-only { display: none; }
-body.after .after-only { display: revert; }
-aside { width: 360px; position: sticky; top: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; max-height: calc(100vh - 24px); overflow: auto; }
-aside h2 { margin: 0 0 2px; font-size: 18px; }
-aside .file { font: 12px ui-monospace, Menlo, monospace; color: var(--mute); margin-bottom: 10px; }
-aside p { margin: 0 0 10px; }
-aside h4 { margin: 14px 0 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--mute); }
-.chips { display: flex; flex-wrap: wrap; gap: 4px; }
-.chip { font-size: 12px; padding: 2px 7px; border-radius: 10px; cursor: pointer; border: 1px solid var(--line); background: none; font-family: inherit; }
-.chip.u { color: var(--uses); border-color: var(--uses); }
-.chip.b { color: var(--usedby); border-color: var(--usedby); }
-.notice { background: #fdecea; border-left: 3px solid var(--flag); padding: 6px 8px; border-radius: 4px; font-size: 13px; }
-.change { background: #eaf2fb; border-left: 3px solid var(--uses); padding: 6px 8px; border-radius: 4px; font-size: 13px; }
-.tag { display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 8px; background: var(--bg); color: var(--mute); margin-bottom: 8px; }
-.empty { color: var(--mute); }
-.msg { border-radius: 8px; padding: 6px 9px; margin: 6px 0; font-size: 13px; white-space: pre-wrap; }
-.msg .who { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; display: block; margin-bottom: 2px; }
-.msg.user { background: var(--bg); }
-.msg.agent { background: #eaf2fb; }
-.msg.agent .who { color: var(--agent); }
-.msg.pending { background: #fff; border: 1px dashed var(--flag); }
-.msg.pending .who { color: var(--flag); }
-.msg .x { float: right; border: 0; background: none; cursor: pointer; color: var(--mute); font-size: 13px; }
-textarea.note { width: 100%; min-height: 64px; font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; resize: vertical; }
-.btn { border: 1px solid var(--line); background: var(--card); border-radius: 7px; padding: 5px 12px; font: inherit; cursor: pointer; }
-.btn.primary { background: var(--ink); color: #fff; border-color: var(--ink); }
-.notes-list { margin: 0; padding-left: 20px; }
-.notes-list li { margin-bottom: 10px; }
-.notes-list .q { font-weight: 600; }
-#bar { position: fixed; right: 20px; bottom: 18px; z-index: 20; }
-#sheet { border: 0; border-radius: 12px; width: min(760px, 92vw); max-height: 84vh; padding: 16px; }
-#sheet[open] { display: flex; flex-direction: column; gap: 10px; }
-#sheet::backdrop { background: #0006; }
-#sheet pre { margin: 0; overflow: auto; background: var(--bg); padding: 10px; border-radius: 8px; font: 12px ui-monospace, Menlo, monospace; white-space: pre-wrap; flex: 1; }
-#toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 6px 14px; border-radius: 8px; display: none; z-index: 40; }
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg)}
+header{display:flex;align-items:center;gap:16px;padding:10px 16px;border-bottom:1px solid var(--line);background:#fff;height:56px}
+header h1{font-size:16px;margin:0;white-space:nowrap}
+.toggle{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.toggle button{border:0;background:#fff;padding:6px 14px;font:inherit;cursor:pointer;color:var(--muted)}
+.toggle button.on{background:var(--ink);color:#fff}
+.toggle button .n{display:inline-block;min-width:18px;padding:0 5px;margin-left:6px;border-radius:9px;background:var(--chg);color:#fff;font-size:11px}
+#crumbs{display:flex;gap:6px;align-items:center;flex:1;min-width:0;overflow:hidden}
+#crumbs a{color:var(--module);cursor:pointer;text-decoration:none;white-space:nowrap}
+#crumbs a:hover{text-decoration:underline}
+#crumbs span.sep{color:var(--muted)}
+#crumbs b{white-space:nowrap}
+.legend{display:flex;gap:10px;font-size:12px;color:var(--muted);align-items:center;white-space:nowrap}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:4px;vertical-align:-2px;border:2px solid}
+main{display:grid;grid-template-columns:210px 1fr 360px;grid-template-rows:100%;height:calc(100vh - 56px);overflow:hidden}
+main>*{min-height:0}
+nav{border-right:1px solid var(--line);background:#fff;font-size:13px;display:flex;flex-direction:column}
+#outline{flex:1;overflow:auto;padding:10px 6px;min-height:0}
+#navfoot{border-top:1px solid var(--line);padding:10px 12px;display:flex;align-items:center;gap:8px;color:var(--muted);cursor:pointer;user-select:none}
+#navfoot .sw{width:30px;height:17px;border-radius:9px;background:#cfd4dd;position:relative;transition:background .15s;flex:none}
+#navfoot .sw::after{content:"";position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:50%;background:#fff;transition:left .15s}
+#navfoot.on .sw{background:var(--add)}
+#navfoot.on .sw::after{left:15px}
+nav .row.rev{opacity:.5}
+.btn.ghost{background:#fff;color:var(--ink);margin-left:6px}
+.btn.ghost.done{border-color:var(--add);color:var(--add)}
+nav .row{padding:3px 6px;border-radius:5px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+nav .row:hover{background:#eef1f6}
+nav .row.here{background:#e4eaf7;font-weight:600}
+nav .row .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+nav .row.removed{text-decoration:line-through;color:var(--muted)}
+#stage{position:relative;overflow:hidden}
+svg{width:100%;height:100%;display:block}
+.fade{animation:fade .28s ease-out}
+@keyframes fade{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:none}}
+#hint{position:absolute;left:12px;bottom:10px;font-size:12px;color:var(--muted);background:rgba(246,247,249,.9);padding:4px 8px;border-radius:6px}
+aside{border-left:1px solid var(--line);background:#fff;display:flex;flex-direction:column;min-height:0}
+.tabs{display:flex;border-bottom:1px solid var(--line)}
+.tabs button{flex:1;border:0;background:#fff;padding:9px;font:inherit;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent}
+.tabs button.on{color:var(--ink);border-bottom-color:var(--ink);font-weight:600}
+#panel{overflow:auto;padding:14px 16px;flex:1}
+#panel h2{font-size:17px;margin:0 0 2px}
+#panel h3{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:16px 0 6px}
+#panel .kind{font-size:12px;color:var(--muted)}
+#panel ul{padding-left:18px;margin:4px 0}
+#panel li{margin:3px 0}
+#panel code{font:12px ui-monospace,SFMono-Regular,Menlo,monospace;background:#f1f3f6;padding:1px 4px;border-radius:4px}
+.files code{display:inline-block;margin:2px 4px 2px 0}
+.obs{border-left:3px solid var(--line);padding:4px 8px;margin:6px 0;background:#fafbfc;border-radius:0 6px 6px 0}
+.obs.bug{border-left-color:var(--del)}
+.obs.simplify{border-left-color:var(--module)}
+.obs.dup{border-left-color:var(--chg)}
+.obs .meta{font-size:11px;color:var(--muted);margin-top:2px}
+.tag{display:inline-block;font-size:10px;padding:0 5px;border-radius:8px;border:1px solid var(--line);color:var(--muted);margin-right:4px}
+.tag.v{border-color:var(--add);color:var(--add)}
+.change{border:2px solid var(--chg);border-radius:8px;padding:8px 10px;margin:10px 0;background:#fff8ea}
+.change.added{border-color:var(--add);background:#ecf8f1}
+.change.removed{border-color:var(--del);background:#fdeeed}
+.btn{display:inline-block;margin-top:10px;border:1px solid var(--ink);background:var(--ink);color:#fff;border-radius:6px;padding:5px 12px;cursor:pointer;font:inherit}
+.muted{color:var(--muted)}
+.logitem{border-bottom:1px solid var(--line);padding:8px 0}
+.logitem .d{font-size:11px;color:var(--muted)}
+g.node{cursor:pointer}
+g.node rect.box{transition:stroke-width .1s}
+g.node:hover rect.box{stroke-width:3}
+g.node.sel rect.box{stroke:#111 !important;stroke-width:3.5}
+g.open{cursor:zoom-in}
+g.open:hover rect{filter:brightness(1.15)}
+g.node.dim,g.edge.dim{opacity:.18}
+g.edge path.hit{stroke:transparent;stroke-width:14;fill:none;cursor:pointer}
+g.edge text{font-size:12.5px;fill:#444}
+g.edge:hover path.vis{stroke-width:2.6}
+.ntitle{font-weight:650;font-size:16px;fill:var(--ink)}
+.nsub{font-size:12.5px;fill:var(--muted)}
+.badge{font-size:10px;fill:#fff;font-weight:600}
+#notes-btn{margin:0 0 0 8px;white-space:nowrap}
+h3+.msg{margin-top:0}
+.msg{border-radius:8px;padding:6px 9px;margin:6px 0;position:relative}
+.msg .who{display:block;font-size:11px;color:var(--muted)}
+.msg.user{background:#eef1f6}
+.msg.agent{background:#ecf8f1;border-left:3px solid var(--add)}
+.msg.pending{background:#fff;border:1px dashed var(--line)}
+.msg .x{position:absolute;top:4px;right:6px;border:0;background:none;color:var(--muted);cursor:pointer}
+textarea.note{width:100%;min-height:58px;margin-top:6px;border:1px solid var(--line);border-radius:6px;font:inherit;padding:6px 8px;resize:vertical}
+dialog#sheet{width:min(720px,90vw);border:1px solid var(--line);border-radius:10px;padding:16px}
+dialog#sheet pre{max-height:50vh;overflow:auto;background:#f6f7f9;border-radius:6px;padding:10px;font:12px ui-monospace,Menlo,monospace;white-space:pre-wrap}
+.row-end{display:flex;gap:8px;justify-content:flex-end}
+#toast{display:none;position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:7px 14px;border-radius:8px;font-size:13px;z-index:9}
 </style>
 </head>
 <body>
-<script type="application/json" id="spec">{"id":"html-explain","title":"How html-explain works","subtitle":"the plugin itself · round 1","summary":"An agent studies a system and writes a spec: boxes in zones and arrows between them. A build step turns the spec into this page. You leave notes on boxes, copy them back, and the agent answers them in place and draws an After view.","round":1,"zones":[{"id":"you","title":"You","why":"Where a session starts and where notes come from.","span":4},{"id":"skill","title":"The skill","why":"What the agent reads before it writes anything.","span":8},{"id":"loop","title":"The review loop","style":"core","arrows":true,"columns":[{"title":"1 · Explore","nodes":["explore"]},{"title":"2 · Write","nodes":["spec","after"]},{"title":"3 · Build","nodes":["build","check"]},{"title":"4 · Read","nodes":["page","notes"]}],"flow":"↺ your notes come back as answers in place and changes in the After view"},{"id":"runtime","title":"Page runtime","why":"The JavaScript inside every built page.","span":8},{"id":"out","title":"Outputs","why":"What stays in your project.","span":4},{"id":"later","title":"After only","style":"outside","after_only":true,"why":"Proposed in round 1."}],"nodes":[{"id":"user","title":"You","zone":"you","kind":"part","desc":"Run `/html-explain \u003cwhat to explain>`: a whole repo, a module, or a question like \"how does auth work\"."},{"id":"skillmd","title":"SKILL.md","file":"skills/html-explain/SKILL.md","zone":"skill","desc":"The steps the agent follows: explore, write the spec, build, then answer notes round by round."},{"id":"specref","title":"Spec reference","file":"references/spec.md","zone":"skill","desc":"Every field of the spec with an example: zones, boxes, arrows, the After view, threads."},{"id":"example","title":"Example spec","file":"examples/html-explain.json","zone":"skill","desc":"This page's own spec, to copy from."},{"id":"explore","title":"Explore","zone":"loop","kind":"step","desc":"The agent reads the code the focus points at: modules, sizes, what calls what, and why things are the way they are."},{"id":"spec","title":"Spec","file":"\u003cname>.json","zone":"loop","kind":"step","desc":"The source of the page: zones, boxes with short plain descriptions, arrows, and red-dot notes on what may not fit a simple design."},{"id":"after","title":"After view","file":"spec.after","zone":"loop","desc":"The proposed system: boxes that change, go or appear, and a list of your notes with where each one lands."},{"id":"build","title":"Build","file":"runtime/build.mjs","zone":"loop","kind":"step","desc":"Checks the spec and writes one HTML file with the runtime and the spec inside it. No network, no dependencies."},{"id":"check","title":"Spec check","file":"build.mjs --check","zone":"loop","desc":"Unknown zones, nodes, arrows and thread keys stop the build with a message."},{"id":"page","title":"The page","file":"\u003cname>.html","zone":"loop","kind":"step","desc":"What you read: click a box to see what it does and what it connects to."},{"id":"notes","title":"Notes","zone":"loop","desc":"Each box and the page itself takes notes. They stay in your browser until you copy them with Notes for the agent."},{"id":"render","title":"Render","file":"runtime/explain.js","zone":"runtime","desc":"Lays out zones and boxes, and draws the arrows of the selected box.","note":"Finding one box on a large page means scanning every zone by eye."},{"id":"panel","title":"Side panel","file":"runtime/explain.js","zone":"runtime","desc":"Shows the selected box: its description, what changes, its arrows, and its conversation."},{"id":"store","title":"Note store","file":"localStorage","zone":"runtime","desc":"Unsent notes, kept per page. A note the agent filed in the spec's threads disappears from it."},{"id":"html","title":"Page file","file":"\u003cname>.html","zone":"out","desc":"One file you can open, share or commit."},{"id":"json","title":"Spec file","file":"\u003cname>.json","zone":"out","desc":"The source; the agent edits it each round."}],"edges":[{"from":"user","to":"skillmd","label":"/html-explain"},{"from":"skillmd","to":"explore"},{"from":"explore","to":"spec"},{"from":"spec","to":"build"},{"from":"after","to":"build"},{"from":"build","to":"check"},{"from":"build","to":"page"},{"from":"page","to":"notes"},{"from":"notes","to":"user","label":"copy to the agent"},{"from":"page","to":"render"},{"from":"page","to":"panel"},{"from":"notes","to":"store"},{"from":"build","to":"html"},{"from":"spec","to":"json"},{"from":"specref","to":"spec"},{"from":"example","to":"spec"}],"after":{"label":"After","summary":"Round 1 adds a search box: type a name and the page selects the box.","nodes":{"render":{"status":"changed","change":"Selects the box a search names.","note":null}},"add":[{"id":"search","title":"Search box","file":"runtime/explain.js","zone":"later","desc":"Type part of a box's name or file; the first match is selected and its arrows drawn."}],"edges":{"add":[{"from":"search","to":"render","label":"selects"}]},"notes":[{"q":"How do I find one box on a big page?","a":"Today by eye. The After view adds a search box.","ids":["render","search"]}]},"threads":{"node:render":[{"id":"n1a2b3","by":"user","view":"before","text":"How do I find one box on a big page?"},{"by":"agent","text":"Today you scan the zones by eye. The After view adds a search box that selects the first box whose name or file matches."}]}}</script>
+<script type="application/json" id="spec">{"id":"html-explain","title":"html-explain","summary":"Draws a system as levels of boxes and arrows that you open one at a time, compare with a proposal, mark reviewed and comment on.","desc":"The agent reads the code and writes one JSON spec. `build.mjs` checks it and makes one self-contained HTML page. In live mode, `serve.mjs` serves the page, passes each note to the agent, and pushes each new save of the spec back to the page.","findings":[{"t":"`applyOps` runs in Node for the check and in the browser for the page: `page()` inlines its source, so there is one copy.","type":"simplify","ref":"build.mjs:16-53","checked":true}],"root":{"nodes":[{"id":"agent","label":"Coding agent","kind":"actor","x":100,"y":120,"sub":"Claude Code or pi, running /html-explain","desc":"Reads the code, writes the spec, answers notes and puts agreed changes in the Proposed view."},{"id":"skill","label":"SKILL.md","kind":"part","x":420,"y":120,"sub":"the steps the agent follows","files":["SKILL.md","references/spec.md"],"desc":"Round 0 draws the system; live mode passes notes; each review round answers notes and updates `proposed`."},{"id":"spec","label":"\u003cname>.json","kind":"store","x":740,"y":120,"sub":"root · proposed · threads","desc":"The one source of the page: the tree of levels, the ops that make the proposed tree, the design log and the threads."},{"id":"reader","label":"You, in the browser","kind":"actor","x":1060,"y":120,"sub":"click · open · review · note"},{"id":"inbox","label":"\u003cname>.inbox.jsonl","kind":"store","x":100,"y":330,"sub":"one line per note","desc":"`serve.mjs` appends each note here. `--watch` prints each new line once; `\u003cname>.inbox.cursor` keeps its place."},{"id":"serve","label":"serve.mjs","kind":"module","x":420,"y":330,"sub":"live mode: page, notes, spec pushes","files":["runtime/serve.mjs"],"desc":"Serves the page on 127.0.0.1 with a random token, takes notes, and long-polls the page with each valid save of the spec.","children":{"nodes":[{"id":"http","label":"HTTP server","kind":"module","x":100,"y":120,"sub":"GET / · GET /api/spec · POST /api/notes","desc":"Answers only its own page: the token, the Host and the Origin must match."},{"id":"specwatch","label":"Spec watcher","kind":"module","x":420,"y":120,"sub":"a valid save is a new version","desc":"A save that fails the check is reported and skipped; the page keeps the last good version."},{"id":"watch","label":"--watch","kind":"module","x":100,"y":330,"sub":"prints note \u003cid> on \u003ckey> (seen in \u003cview>)","desc":"The agent's Monitor runs this. Each new note in the inbox prints one line, never twice."}],"edges":[{"from":"specwatch","to":"http","label":"wakes long polls"},{"from":"http","to":"watch","label":"inbox lines","kind":"data"}]}},{"id":"build","label":"build.mjs","kind":"module","x":740,"y":330,"sub":"check() · applyOps() · page()","files":["runtime/build.mjs"],"children":{"nodes":[{"id":"check","label":"check()","kind":"module","x":100,"y":120,"sub":"ids, kinds, x/y, arrows, overlaps, thread keys","desc":"Checks the current tree, then the proposed tree, and names each problem by its path."},{"id":"ops","label":"applyOps()","kind":"module","x":420,"y":120,"sub":"add · remove · change · edge · unedge · reedge","desc":"Copies the tree and applies each op at its path. The page runs the same function."},{"id":"pagefn","label":"page()","kind":"module","x":420,"y":330,"sub":"inlines the spec, CSS and JS","desc":"One HTML file that works offline. In live mode it also carries the server's token."}],"edges":[{"from":"check","to":"ops","label":"proposed tree"},{"from":"pagefn","to":"ops","label":"inlines its source"}]}},{"id":"page","label":"The page","kind":"module","x":1060,"y":330,"sub":"explain.js · explain.css","files":["runtime/explain.js","runtime/explain.css"],"desc":"Outline on the left, one level in the middle, Details and Design log on the right.","children":{"nodes":[{"id":"outline","label":"Outline","kind":"module","x":100,"y":120,"sub":"the open path, with status dots"},{"id":"diagram","label":"Diagram","kind":"module","x":420,"y":120,"sub":"one level: boxes, arrows, ▸ numbers","desc":"A click selects a box. A click on its ▸ number, or a double-click, opens it."},{"id":"details","label":"Details panel","kind":"module","x":740,"y":120,"sub":"summary · findings · review · notes","children":{"nodes":[{"id":"summary","label":"Box summary","kind":"module","x":100,"y":120,"sub":"kind · files · what it does · proposed change"},{"id":"findings","label":"Findings","kind":"module","x":420,"y":120,"sub":"bug · simplify · dup, checked or not"},{"id":"review","label":"Mark reviewed","kind":"module","x":100,"y":330,"sub":"hides the box until Show reviewed"},{"id":"thread","label":"Notes thread","kind":"module","x":420,"y":330,"sub":"answers · your notes · a draft that survives redraws"}],"edges":[]}},{"id":"hover","label":"Hover preview","kind":"module","x":740,"y":330,"sub":"shows a box in Details while nothing is selected"},{"id":"local","label":"Browser storage","kind":"store","x":100,"y":330,"sub":"hx:\u003cid>:reviewed · :notes · :show-reviewed"},{"id":"poll","label":"Live loop","kind":"module","x":420,"y":330,"sub":"long-polls /api/spec, redraws in place"}],"edges":[{"from":"outline","to":"diagram","label":"go(path)"},{"from":"diagram","to":"details","label":"select"},{"from":"hover","to":"details","label":"preview"},{"from":"details","to":"local","label":"marks · notes","kind":"data"},{"from":"poll","to":"diagram","label":"redraw"}]}}],"edges":[{"from":"agent","to":"skill","label":"follows"},{"from":"agent","to":"spec","label":"writes","bend":-40},{"from":"build","to":"spec","label":"checks","kind":"data"},{"from":"build","to":"page","label":"writes \u003cname>.html"},{"from":"serve","to":"build","label":"load() · page()"},{"from":"serve","to":"page","label":"serves · pushes the spec","kind":"http","bend":40},{"from":"serve","to":"inbox","label":"appends notes","kind":"data"},{"from":"inbox","to":"agent","label":"--watch, one line each"},{"from":"reader","to":"page","label":"clicks · notes"}]},"proposed":{"summary":"A demo round: one box added, one changed, one removed.","ops":[{"op":"add","at":["page"],"node":{"id":"search","label":"Search","kind":"module","x":740,"y":330,"sub":"find a box by name at any level","change":"New: type a name, jump to its level and select it. See log 1."}},{"op":"edge","at":["page"],"edge":{"from":"search","to":"diagram","label":"go(path) · select"}},{"op":"remove","at":["page"],"id":"hover"},{"op":"change","at":["serve"],"id":"watch","set":{"sub":"prints the box label after its key","change":"The line names the box: note n1 on node:page/details (Details panel). See log 3."}}],"log":[{"date":"2026-11-25","status":"proposed","title":"1 · Search across levels","text":"Deep trees hide boxes. A search box finds one by name and opens its level."},{"date":"2026-11-25","status":"decided","title":"2 · No hover preview","text":"Hover replaces the panel while you read it. With it gone, Details change only on a click."},{"date":"2026-11-25","status":"proposed","title":"3 · Labels in --watch lines","text":"A path alone is hard to read in a monitor. The line adds the box label."}]},"threads":{"page":[{"id":"n7k2qa","by":"user","view":"current","text":"Where do my notes go when the page is a plain file?"},{"by":"agent","text":"They stay in this browser. **Notes for the agent** copies them as one block to paste into the chat."}],"node:page/hover":[{"id":"n3d9xe","by":"user","view":"current","text":"Hover keeps replacing the panel while I read. Drop it."},{"by":"agent","text":"Agreed: it is removed in Proposed (log 2). A click still shows any box."}]}}</script>
 <script>
-(() => {
-  let S = JSON.parse(document.getElementById("spec").textContent);
-  const LIVE = JSON.parse(document.getElementById("live")?.textContent || "null"); // set by serve.mjs
-  const live = !!LIVE;
-  const KEY = "html-explain:" + S.id;
-  const $ = (q, el = document) => el.querySelector(q);
-  const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
-  const md = (s) => esc(s).replace(/`([^`]+)`/g, "<code>$1</code>");
-  const api = (path, opts = {}) => fetch(path, { ...opts, headers: { "X-HX-Token": LIVE.token } });
-
-  // notes the agent has not answered yet: unsent, or sent in live mode; one filed in `threads` drops
-  let pending = [];
-  try { pending = JSON.parse(localStorage.getItem(KEY) || "[]"); } catch {}
-  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(pending)); } catch {} };
-  const unsent = () => pending.filter((n) => !n.sent);
-  let threads = {};
-  function absorb(spec) {
-    S = spec;
-    threads = S.threads || {};
-    const answered = new Set(Object.values(threads).flat().map((m) => m.id).filter(Boolean));
-    pending = pending.filter((n) => !answered.has(n.id));
-    save();
+const W = 220, H = 78, SX = 1.36, SY = 1.5;
+function levelOf(root, path) {
+  let n = root;
+  for (const id of path) {
+    n = (n.children?.nodes || []).find((x) => x.id === id);
+    if (!n) return null;
   }
-  absorb(S);
-  const drafts = {}; // half-written notes by key: a redraw keeps them
-
-  let mode = "before";
-  let sel = null; // "node:<id>" or null
-  let view, els = {};
-
-  // the view model of one mode
-  function build(m) {
-    const nodes = {};
-    for (const n of S.nodes) nodes[n.id] = { ...n };
-    let edges = (S.edges || []).map((e) => ({ ...e }));
-    const zones = (S.zones || []).filter((z) => (m === "after" ? !z.before_only : !z.after_only));
-    if (m === "after" && S.after) {
-      const a = S.after;
-      for (const [id, p] of Object.entries(a.nodes || {})) {
-        if (nodes[id]) nodes[id] = { ...nodes[id], ...p, status: p.status || "changed" };
-      }
-      for (const n of a.add || []) nodes[n.id] = { ...n, status: "new" };
-      const drop = new Set(a.edges?.remove || []);
-      const gone = (id) => nodes[id].status === "removed";
-      edges = edges.filter((e) => !drop.has(`${e.from}>${e.to}`) && !gone(e.from) && !gone(e.to));
-      edges = edges.concat((a.edges?.add || []).map((e) => ({ ...e })));
-    }
-    for (const n of Object.values(nodes)) {
-      Object.assign(n, { key: "node:" + n.id, out: [], in: [] });
-      if (n.status === "removed") n.note = null;
-    }
-    for (const e of edges) {
-      nodes[e.from].out.push(e);
-      nodes[e.to].in.push(e);
-    }
-    return { nodes, edges, zones };
-  }
-  const picked = () => (sel ? view.nodes[sel.slice(5)] : null);
-  const talk = (key) => (threads[key] || []).length + pending.filter((n) => n.el === key).length;
-
-  function nodeEl(n) {
-    const el = document.createElement("div");
-    const cls = { changed: " chg", removed: " gone", new: " new" }[n.status] || "";
-    el.className = "node" + (n.kind ? " " + n.kind : "") + (n.note ? " flag" : "") + cls;
-    const size = n.status === "removed" ? "removed" : n.status === "changed" ? "edited" : (n.size ?? "");
-    el.innerHTML = `<div class="t">${esc(n.title)}</div><div class="f"><span>${esc(n.file || "")}</span><span>${esc(size)}</span></div>`;
-    const k = talk(n.key);
-    if (k) {
-      const mine = pending.some((p) => p.el === n.key);
-      el.insertAdjacentHTML("beforeend", `<span class="talk${mine ? " pending" : ""}">${k}</span>`);
-    }
-    el.onclick = (e) => { e.stopPropagation(); select(n.key); };
-    els[n.id] = el;
-    return el;
-  }
-
-  function render() {
-    if (mode === "after" && !S.after) mode = "before";
-    document.body.classList.toggle("after", mode === "after");
-    header();
-    view = build(mode);
-    els = {};
-    const board = $("#board");
-    board.querySelectorAll(".zone").forEach((z) => z.remove());
-    const placed = new Set();
-    for (const z of view.zones) {
-      const sec = document.createElement("section");
-      sec.className = "zone" + (z.style ? " " + z.style : "");
-      sec.style.gridColumn = `span ${z.span || 12}`;
-      sec.innerHTML = `<h2>${esc(z.title)}</h2>${z.why ? `<div class="why">${md(z.why)}</div>` : ""}`;
-      if (z.columns) {
-        const cols = document.createElement("div");
-        cols.className = "cols";
-        cols.style.gridTemplateColumns = `repeat(${z.columns.length}, 1fr)`;
-        z.columns.forEach((c, i) => {
-          const col = document.createElement("div");
-          col.className = "col";
-          col.innerHTML = c.title ? `<h3>${esc(c.title)}</h3>` : "";
-          for (const id of c.nodes || []) {
-            if (view.nodes[id]) { col.append(nodeEl(view.nodes[id])); placed.add(id); }
-          }
-          if (z.arrows && i < z.columns.length - 1) col.insertAdjacentHTML("beforeend", `<span class="arrow">→</span>`);
-          cols.append(col);
-        });
-        sec.append(cols);
-      }
-      const rest = Object.values(view.nodes).filter((n) => n.zone === z.id && !placed.has(n.id));
-      if (rest.length) {
-        const box = document.createElement("div");
-        box.className = "nodes";
-        rest.forEach((n) => { box.append(nodeEl(n)); placed.add(n.id); });
-        sec.append(box);
-      }
-      if (z.flow) sec.insertAdjacentHTML("beforeend", `<div class="flowline">${md(z.flow)}</div>`);
-      board.append(sec);
-    }
-    select(picked() ? sel : null);
-    refreshBar();
-  }
-
-  // ---- arrows: those marked `always`, plus the selected box's. They are drawn above the boxes,
-  // from edge to edge, straight unless both directions between two boxes are shown.
-  const MARKERS = ["", "u", "b"].map((c) =>
-    `<marker id="arrow${c}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="head ${c}" d="M0,1 L9,5 L0,9 z"/></marker>`).join("");
-  const GAP = 3; // between a box and its arrow's end
-  const LABEL = { char: 6.6, line: 14 }; // the 11px label font: average width, line height
-  function draw() {
-    const b = $("#board").getBoundingClientRect();
-    const box = (el) => {
-      const r = el.getBoundingClientRect();
-      return { x: r.left - b.left + r.width / 2, y: r.top - b.top + r.height / 2, w: r.width / 2 + GAP, h: r.height / 2 + GAP };
-    };
-    // where the line from a box's centre towards the other box's centre leaves it
-    const rim = (a, o) => {
-      const dx = o.x - a.x, dy = o.y - a.y;
-      const t = Math.min(a.w / Math.abs(dx || 1e-9), a.h / Math.abs(dy || 1e-9));
-      return [a.x + dx * t, a.y + dy * t];
-    };
-    const node = sel ? sel.slice(5) : null;
-    const shown = view.edges.filter((e) => e.always || e.from === node || e.to === node);
-    let html = `<defs>${MARKERS}</defs>`;
-    const taken = [];
-    for (const e of shown) {
-      if (!els[e.from] || !els[e.to]) continue;
-      const A = box(els[e.from]), B = box(els[e.to]);
-      const [x1, y1] = rim(A, B), [x2, y2] = rim(B, A);
-      const len = Math.hypot(x2 - x1, y2 - y1);
-      // boxes that nearly touch get no line: the outline and the panel already show the link
-      if ((x2 - x1) * (B.x - A.x) + (y2 - y1) * (B.y - A.y) <= 0 || len < 10) continue;
-      const back = shown.some((r) => r.from === e.to && r.to === e.from) ? 16 : 0;
-      const cx = (x1 + x2) / 2 + ((y2 - y1) / len) * back, cy = (y1 + y2) / 2 - ((x2 - x1) / len) * back;
-      const cls = node === e.to ? "b" : node === e.from ? "u" : "";
-      html += `<path class="w ${cls}" d="M${x1},${y1} Q${cx},${cy} ${x2},${y2}" marker-end="url(#arrow${cls})"/>`;
-      // a label sits at the line's middle, unless another label is already there
-      const lx = (x1 + 2 * cx + x2) / 4, ly = (y1 + 2 * cy + y2) / 4 - 4;
-      const half = ((e.label || "").length * LABEL.char) / 2 + 4;
-      if (e.label && !taken.some(([x, y, h]) => Math.abs(x - lx) < h + half && Math.abs(y - ly) < LABEL.line)) {
-        taken.push([lx, ly, half]);
-        html += `<text x="${lx}" y="${ly}" class="w ${cls}">${esc(e.label)}</text>`;
-      }
-    }
-    $("#wires").innerHTML = html;
-  }
-  let frame = 0;
-  const redraw = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(draw); };
-
-  // ---- the side panel
-  function chip(id, cls, label) {
-    const n = view.nodes[id];
-    return n ? `<button class="chip ${cls}" data-key="${esc(n.key)}">${esc(n.title)}${label ? " · " + esc(label) : ""}</button>` : "";
-  }
-  const chips = (list, f) => (list.length ? `<div class="chips">${list.map(f).join("")}</div>` : `<div class="empty">none</div>`);
-  function thread(key) {
-    const msgs = (threads[key] || []).map((m) =>
-      `<div class="msg ${m.by === "agent" ? "agent" : "user"}"><span class="who">${m.by === "agent" ? "Agent" : "You"}${m.view ? " · " + esc(m.view) : ""}</span>${md(m.text)}</div>`);
-    const mine = pending.filter((n) => n.el === key).map((n) => n.sent
-      ? `<div class="msg pending"><span class="who">You · sent, the agent is on it</span>${md(n.text)}</div>`
-      : `<div class="msg pending"><button class="x" data-del="${esc(n.id)}" title="Delete">✕</button><span class="who">You · not sent yet</span>${md(n.text)}</div>`);
-    return `<h4>Notes and questions</h4>${msgs.join("")}${mine.join("")}
-      <textarea class="note" data-for="${esc(key)}" placeholder="A question, a change you want, or a reply…"></textarea>
-      <div style="display:flex;gap:6px;margin-top:6px"><button class="btn primary" data-add="${esc(key)}">Add note</button></div>`;
-  }
-  function panel() {
-    const p = $("#panel");
-    const old = p.querySelector("textarea.note");
-    const typing = old && document.activeElement === old;
-    const caret = typing ? [old.selectionStart, old.selectionEnd] : null;
-    if (old) drafts[old.dataset.for] = old.value;
-    const scroll = p.scrollTop;
-    const it = picked();
-    let html;
-    if (!it) {
-      const a = mode === "after" && S.after;
-      html = `<h2>${esc(a ? a.label || "After" : "Click a box")}</h2>
-        <p>${md(a ? a.summary || "" : S.summary || "")}</p>
-        <p class="empty">${live
-          ? "Click a box to read it, see its arrows and leave a note. The agent sees each note as you add it; its answers and changes appear here as it makes them."
-          : "Click a box to read it, see its arrows and leave a note. Notes stay in this browser until you copy them to the agent with <b>Notes for the agent</b>."}</p>`;
-      if (a?.notes?.length) {
-        html += `<h4>Your notes and where they land</h4><ol class="notes-list">${a.notes.map((x) =>
-          `<li><div class="q">${md(x.q)}</div><div>${md(x.a)}</div><div class="chips">${(x.ids || []).map((id) => chip(id, "")).join("")}</div></li>`).join("")}</ol>`;
-      }
-      html += thread("page");
+  return n;
+}
+function applyOps(root, ops) {
+  const tree = JSON.parse(JSON.stringify(root));
+  const errors = [];
+  ops.forEach((o, i) => {
+    const at = Array.isArray(o.at) ? o.at : [];
+    const where = `proposed.ops[${i}] (${o.op} at [${at.join(", ")}])`;
+    const n = levelOf(tree, at);
+    if (!n) return errors.push(`${where}: no box at that path`);
+    const L = (n.children ??= { nodes: [], edges: [] });
+    L.edges ??= [];
+    const node = (id) => L.nodes.find((x) => x.id === id);
+    const edge = () => L.edges.find((e) => e.from === o.from && e.to === o.to);
+    if (o.op === "add") {
+      if (!o.node?.id || node(o.node.id)) return errors.push(`${where}: node needs a new id`);
+      L.nodes.push(o.node);
+    } else if (o.op === "remove") {
+      if (!node(o.id)) return errors.push(`${where}: no box ${o.id}`);
+      L.nodes = L.nodes.filter((x) => x.id !== o.id);
+      L.edges = L.edges.filter((e) => e.from !== o.id && e.to !== o.id);
+    } else if (o.op === "change") {
+      if (!node(o.id)) return errors.push(`${where}: no box ${o.id}`);
+      Object.assign(node(o.id), o.set);
+    } else if (o.op === "edge") {
+      if (!o.edge?.from || !o.edge?.to) return errors.push(`${where}: edge needs from and to`);
+      L.edges.push(o.edge);
+    } else if (o.op === "unedge") {
+      if (!edge()) return errors.push(`${where}: no arrow ${o.from}>${o.to}`);
+      L.edges = L.edges.filter((e) => !(e.from === o.from && e.to === o.to));
+    } else if (o.op === "reedge") {
+      if (!edge()) return errors.push(`${where}: no arrow ${o.from}>${o.to}`);
+      Object.assign(edge(), o.set);
     } else {
-      const tag = it.status === "removed" ? "removed" : it.status === "new" ? "new" : it.tag;
-      html = `${tag ? `<span class="tag">${esc(tag)}</span>` : ""}<h2>${esc(it.title)}</h2>
-        <div class="file">${esc(it.file || "")}${it.size && mode === "before" ? " · " + esc(it.size) : ""}</div>
-        <p>${md(it.desc)}</p>
-        ${it.change ? `<h4>What changes</h4><p class="change">${md(it.change)}</p>` : ""}
-        ${it.note ? `<h4>Worth a look</h4><p class="notice">${md(it.note)}</p>` : ""}
-        ${it.status === "removed" ? "" : `<h4>Uses</h4>${chips(it.out, (e) => chip(e.to, "u", e.label))}
-        <h4>Used by</h4>${chips(it.in, (e) => chip(e.from, "b", e.label))}`}
-        ${thread(it.key)}`;
+      errors.push(`${where}: op is add, remove, change, edge, unedge or reedge`);
     }
-    p.innerHTML = html;
-    const ta = p.querySelector("textarea.note");
-    ta.value = drafts[ta.dataset.for] || "";
-    ta.oninput = () => (drafts[ta.dataset.for] = ta.value);
-    if (typing && old.dataset.for === ta.dataset.for) {
-      ta.focus();
-      ta.setSelectionRange(...caret);
+  });
+  return { tree, errors };
+}
+(() => {
+const NS = "http://www.w3.org/2000/svg";
+const COLORS = {module:"--module", store:"--store", part:"--part", actor:"--actor", external:"--ext"};
+const KINDS = {module:"Code", store:"Files on disk", part:"Part the user writes", actor:"Person or agent", external:"Outside the system"};
+const CSSV = {};
+const css = v => CSSV[v] ??= getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const $ = q => document.querySelector(q);
+
+let S = JSON.parse($("#spec").textContent);
+const LIVE = JSON.parse($("#live")?.textContent || "null");
+const live = !!LIVE;
+const api = (path, opts = {}) => fetch(path, {...opts, headers: {"X-HX-Token": LIVE.token}});
+const KEY = k => "hx:" + S.id + ":" + k;
+const stored = (k, d) => { try { return JSON.parse(localStorage.getItem(KEY(k))) ?? d; } catch { return d; } };
+const store = (k, v) => { try { localStorage.setItem(KEY(k), JSON.stringify(v)); } catch {} };
+
+let CUR, PROP, counts, threads, pending = stored("notes", []);
+function absorb(spec){
+  S = spec;
+  CUR = {label:S.title, sub:S.summary, desc:S.desc, does:S.does, files:S.files, findings:S.findings, children:S.root};
+  PROP = applyOps(CUR, S.proposed?.ops || []).tree;
+  counts = new Map();
+  threads = S.threads || {};
+  const answered = new Set(Object.values(threads).flat().map(m=>m.id).filter(Boolean));
+  pending = pending.filter(n=>!answered.has(n.id));
+  store("notes", pending);
+}
+absorb(S);
+const drafts = {};
+const unsent = () => pending.filter(n=>!n.sent);
+
+const kindName = k => S.kinds?.[k] || KINDS[k] || k;
+const ekey = e => e.from + ">" + e.to;
+function nodeChanged(c, p){ return !!p.change || c.label!==p.label || (c.sub||"")!==(p.sub||""); }
+function edgeChanged(c, p){ return !!p.change || (c.label||"")!==(p.label||""); }
+function diffLevel(c, p){
+  const cn = c?.children?.nodes||[], ce = c?.children?.edges||[];
+  if(!p) return {nodes:cn.map(n=>({n, st:"same"})), edges:ce.map(e=>({e, st:"same"}))};
+  const pn = p.children?.nodes||[], pe = p.children?.edges||[];
+  const cm = new Map(cn.map(x=>[x.id,x])), pids = new Set(pn.map(x=>x.id));
+  const nodes = pn.map(n=>{ const o = cm.get(n.id); return {n, cur:o, st: !o ? "added" : nodeChanged(o,n) ? "changed" : "same"}; });
+  for(const o of cn) if(!pids.has(o.id)) nodes.push({n:o, st:"removed"});
+  const cem = new Map(ce.map(e=>[ekey(e),e])), pek = new Set(pe.map(ekey));
+  const edges = pe.map(e=>{ const o = cem.get(ekey(e)); return {e, st: !o ? "added" : edgeChanged(o,e) ? "changed" : "same"}; });
+  for(const o of ce) if(!pek.has(ekey(o))) edges.push({e:o, st:"removed"});
+  return {nodes, edges};
+}
+function changesUnder(c, p){
+  if(!counts.has(p)){
+    const d = diffLevel(c, p);
+    counts.set(p, [...d.nodes, ...d.edges].filter(x=>x.st!=="same").length + d.nodes.reduce((s,x)=>s+(x.cur?changesUnder(x.cur,x.n):0), 0));
+  }
+  return counts.get(p);
+}
+
+const state = {mode:"current", path:[], sel:null, tab:"details", labels:true, showReviewed: stored("show-reviewed", false)};
+const reviewed = new Set(stored("reviewed", []));
+const isHidden = p => !state.showReviewed && p.some((_,i)=>reviewed.has(p.slice(0,i+1).join("/")));
+function visible(L, path){ if(state.showReviewed) return L; const nodes = L.nodes.filter(x=>!isHidden([...path, x.n.id])); const ids = new Set(nodes.map(x=>x.n.id)); return {...L, nodes, edges: L.edges.filter(x=>ids.has(x.e.from) && ids.has(x.e.to))}; }
+function reviewBtn(p){ const k = p.join("/"), on = reviewed.has(k); return '<button class="btn ghost'+(on?" done":"")+'" data-rev="'+esc(k)+'">'+(on?"✓ Reviewed · undo":"Mark reviewed")+'</button>'; }
+function saveReviewed(){ store("reviewed", [...reviewed]); store("show-reviewed", state.showReviewed); }
+function clampPath(){
+  if(!S.proposed) state.mode = "current";
+  while(state.path.length && (!levelOf(tree(), state.path) || isHidden(state.path))) state.path.pop();
+}
+function reviewChanged(){ saveReviewed(); clampPath(); state.sel = null; writeHash(); render(); }
+function toggleReviewed(k){ if(reviewed.has(k)) reviewed.delete(k); else reviewed.add(k); reviewChanged(); }
+function readHash(){
+  const parts = decodeURIComponent(location.hash.slice(1)).split("/").filter(Boolean);
+  if(parts[0]==="current"||parts[0]==="proposed") state.mode = parts.shift();
+  state.path = parts;
+  clampPath();
+}
+function writeHash(){ history.replaceState(null,"","#"+[state.mode,...state.path].join("/")); }
+const tree = () => state.mode==="current" ? CUR : PROP;
+
+function merged(path){
+  const d = diffLevel(levelOf(CUR, path), state.mode==="proposed" ? levelOf(PROP, path) : null);
+  for(const x of d.nodes) x.inner = x.cur ? changesUnder(x.cur, x.n) : 0;
+  return d;
+}
+function resolve(sel){
+  if(!sel) return null;
+  const L = visible(merged(state.path), state.path);
+  return (sel.node ? L.nodes.find(x=>x.n.id===sel.node) : L.edges.find(x=>ekey(x.e)===sel.edge)) || null;
+}
+
+document.body.innerHTML = `
+<header>
+  <h1></h1>
+  <div class="toggle" id="mode"><button data-m="current">Current</button><button data-m="proposed">Proposed<span class="n" id="nchanges"></span></button></div>
+  <div id="crumbs"></div>
+  <div class="legend" id="legend"></div>
+  <button class="btn" id="notes-btn"></button>
+</header>
+<main>
+  <nav><div id="outline"></div><div id="navfoot"><span class="sw"></span><span>Show reviewed <span id="nrev"></span></span></div></nav>
+  <section id="stage"><svg id="svg"></svg>
+    <div id="hint">Click a box to select it · click its ▸ number (or double-click the box) to open it · Esc clears the selection, then goes up · C / P switch views · L hides arrow labels</div></section>
+  <aside>
+    <div class="tabs" id="tabs"><button data-t="details" class="on">Details</button><button data-t="log">Design log</button></div>
+    <div id="panel"></div>
+  </aside>
+</main>
+<dialog id="sheet"><b>Notes for the agent</b>
+  <p class="muted">Copy this and paste it to the agent. It answers each note in place and updates the Proposed view.</p>
+  <pre id="sheet-text"></pre>
+  <div class="row-end"><button class="btn ghost" id="sheet-close">Close</button><button class="btn" id="sheet-copy">Copy</button></div></dialog>
+<div id="toast"></div>`;
+
+const svg = $("#svg");
+function el(tag, attrs={}, parent){ const e = document.createElementNS(NS, tag); for(const [k,v] of Object.entries(attrs)) e.setAttribute(k,v); parent?.appendChild(e); return e; }
+function wrap(text, max){ const words = String(text||"").split(/\s+/).filter(Boolean); const lines=[]; let cur=""; for(const w of words){ if((cur+" "+w).trim().length>max && cur){ lines.push(cur); cur=w; } else cur=(cur+" "+w).trim(); } if(cur) lines.push(cur); return lines; }
+const stColor = st => st==="added"?css("--add"):st==="removed"?css("--del"):st==="changed"?css("--chg"):null;
+function rectOf(n){ const cx = n.x*SX, cy = n.y*SY; return {x:cx-W/2, y:cy-H/2, w:W, h:H, cx, cy}; }
+function clipToRect(r, from, toward){
+  const dx = toward.x-from.x, dy = toward.y-from.y;
+  if(!dx && !dy) return {x:from.x, y:from.y};
+  const tx = dx ? (r.w/2+4)/Math.abs(dx) : Infinity, ty = dy ? (r.h/2+4)/Math.abs(dy) : Infinity;
+  const t = Math.min(tx, ty);
+  return {x:from.x+dx*t, y:from.y+dy*t};
+}
+
+let viewBox = null;
+function render(animateFrom){
+  let {nodes, edges} = visible(merged(state.path), state.path);
+  let ghost = null;
+  const gone = nodes.filter(x=>x.st==="removed");
+  if(state.mode==="proposed" && gone.length){
+    const kept = nodes.filter(x=>x.st!=="removed"), ids = new Set(gone.map(x=>x.n.id));
+    const base = kept.length ? kept : gone;
+    const maxY = Math.max(...base.map(x=>x.n.y)), minX = Math.min(...base.map(x=>x.n.x));
+    ghost = {x:minX, y:maxY+200};
+    const per = Math.max(4, new Set(kept.map(x=>x.n.x)).size);
+    nodes = [...kept, ...gone.map((x,i)=>({...x, n:{...x.n, x:minX+(i%per)*250, y:ghost.y+Math.floor(i/per)*120}}))];
+    edges = edges.filter(x=>!ids.has(x.e.from) && !ids.has(x.e.to));
+  }
+  svg.innerHTML = "";
+  const defs = el("defs", {}, svg);
+  const markers = {};
+  const marker = color => { if(markers[color]) return markers[color]; const id = "m"+Object.keys(markers).length; const m = el("marker",{id, viewBox:"0 0 10 10", refX:9, refY:5, markerWidth:7, markerHeight:7, orient:"auto-start-reverse"}, defs); el("path",{d:"M0,0 L10,5 L0,10 z", fill:color}, m); return markers[color] = id; };
+  const root = el("g", {class: animateFrom===false ? "" : "fade"}, svg);
+  const gE = el("g", {}, root), gL = el("g", {}, root), gN = el("g", {}, root);
+  const byId = new Map(nodes.map(x=>[x.n.id, x.n]));
+  const pairs = new Map();
+  for(const {e} of edges){ const k = [e.from,e.to].sort().join("|"); pairs.set(k,(pairs.get(k)||0)+1); }
+  const seen = new Map();
+  const rects = nodes.map(x=>rectOf(x.n)), placed = [];
+  let minx=Infinity,miny=Infinity,maxx=-Infinity,maxy=-Infinity;
+  const grow = (x,y,w=0,h=0)=>{ minx=Math.min(minx,x); miny=Math.min(miny,y); maxx=Math.max(maxx,x+w); maxy=Math.max(maxy,y+h); };
+
+  for(const x of edges){
+    const {e, st} = x;
+    const a = byId.get(e.from), b = byId.get(e.to); if(!a||!b) continue;
+    const k = [e.from,e.to].sort().join("|"); const i = seen.get(k)||0; seen.set(k,i+1);
+    const multi = pairs.get(k);
+    const bend = e.bend ?? (multi>1 ? (i - (multi-1)/2) * 46 * (e.from<e.to?1:-1) : 0);
+    const ra = rectOf(a), rb = rectOf(b);
+    const mx = (ra.cx+rb.cx)/2, my = (ra.cy+rb.cy)/2, dx = rb.cx-ra.cx, dy = rb.cy-ra.cy, len = Math.hypot(dx,dy)||1;
+    const c = {x: mx - dy/len*bend*2, y: my + dx/len*bend*2};
+    const p1 = clipToRect(ra, {x:ra.cx,y:ra.cy}, c), p2 = clipToRect(rb, {x:rb.cx,y:rb.cy}, c);
+    const d = "M"+p1.x+","+p1.y+" Q"+c.x+","+c.y+" "+p2.x+","+p2.y;
+    const color = stColor(st) || (e.kind==="spawn" ? "#7a5af8" : e.kind==="http" ? "#0f8a8a" : "#7c8597");
+    const g = el("g", {class:"edge", "data-from":e.from, "data-to":e.to}, gE);
+    el("path", {class:"vis", d, stroke:color, "stroke-width":st==="same"?1.6:2.4, fill:"none", "stroke-dasharray": st==="removed" ? "6 5" : e.kind==="data" ? "2 4" : "", "marker-end":"url(#"+marker(color)+")", opacity: st==="removed"?.6:1}, g);
+    el("path", {class:"hit", d}, g);
+    g.addEventListener("click", ev=>{ ev.stopPropagation(); select({edge:ekey(e)}); });
+    g.addEventListener("mouseenter", ()=>preview(x));
+    if(state.labels && e.label){
+      const lines = wrap(e.label, 26);
+      const bw = Math.max(...lines.map(s=>s.length))*6.7+12, bh = lines.length*15+6;
+      const at = t => ({x:(1-t)*(1-t)*p1.x + 2*(1-t)*t*c.x + t*t*p2.x, y:(1-t)*(1-t)*p1.y + 2*(1-t)*t*c.y + t*t*p2.y});
+      const hits = q => [rects, placed].some(a => a.some(o => q.x-bw/2 < o.x+o.w && q.x+bw/2 > o.x && q.y-bh/2 < o.y+o.h && q.y+bh/2 > o.y));
+      let best = at(.5);
+      for(const t of [.5,.42,.58,.35,.65,.28,.72]){ const q = at(t); if(!hits(q)){ best = q; break; } }
+      const lx = best.x, ly = best.y;
+      placed.push({x:lx-bw/2-3, y:ly-bh/2-3, w:bw+6, h:bh+6});
+      const gl = el("g", {class:"edge", "data-from":e.from, "data-to":e.to}, gL);
+      el("rect", {x:lx-bw/2, y:ly-bh/2, width:bw, height:bh, rx:4, fill:"#fff", stroke: stColor(st)||"#e3e6ec", opacity:.95}, gl);
+      lines.forEach((s,j)=>{ const tx = el("text", {x:lx, y:ly-bh/2+15+j*15, "text-anchor":"middle", fill: stColor(st)||"#444"}, gl); tx.textContent = s; if(st==="removed") tx.setAttribute("text-decoration","line-through"); });
+      gl.addEventListener("click", ev=>{ ev.stopPropagation(); select({edge:ekey(e)}); });
+      grow(lx-bw/2, ly-bh/2, bw, bh);
     }
-    p.scrollTop = scroll;
-    p.querySelectorAll("[data-key]").forEach((b) => (b.onclick = (ev) => { ev.stopPropagation(); select(b.dataset.key); }));
-    p.querySelectorAll("[data-del]").forEach((b) => (b.onclick = () => { pending = pending.filter((n) => n.id !== b.dataset.del); save(); render(); }));
-    p.querySelector("[data-add]").onclick = async (ev) => {
-      const key = ev.currentTarget.dataset.add;
-      const text = ta.value.trim();
-      if (!text) return;
-      const note = { id: "n" + Math.random().toString(36).slice(2, 7), el: key, view: mode, text };
-      if (live) {
-        try { note.sent = (await api("/api/notes", { method: "POST", body: JSON.stringify(note) })).ok; } catch {}
-        if (!note.sent) toast("Could not reach the agent's server: kept here, copy it with Notes for the agent");
-      }
-      pending.push(note);
-      drafts[key] = "";
-      save();
-      render();
-    };
   }
 
-  function select(key) {
-    sel = key || null;
-    $("#board").classList.toggle("focus", !!sel);
-    Object.values(els).forEach((e) => e.classList.remove("sel", "rel-u", "rel-b"));
-    const it = picked();
-    const mark = (id, cls) => els[id]?.classList.add(cls);
-    if (it) {
-      mark(it.id, "sel");
-      it.out.forEach((e) => mark(e.to, "rel-u"));
-      it.in.forEach((e) => mark(e.from, "rel-b"));
+  for(const x of nodes){
+    const {n, st, inner} = x;
+    const r = rectOf(n);
+    grow(r.x, r.y, r.w, r.h);
+    const base = css(COLORS[n.kind]||"--module");
+    const sc = stColor(st);
+    const g = el("g", {class:"node", "data-id":n.id}, gN);
+    const fill = n.kind==="part" ? "#f6f0fd" : n.kind==="store" ? "#ecf7f7" : n.kind==="actor" ? "#eef0f4" : n.kind==="external" ? "#f7f8fa" : "#fff";
+    el("rect", {class:"box", x:r.x, y:r.y, width:r.w, height:r.h, rx: n.kind==="actor"?r.h/2:9, fill: st==="added" ? "#ecf8f1" : st==="removed" ? "#fdeeed" : fill, stroke: sc||base, "stroke-width": sc?2.6:1.6, "stroke-dasharray": (st==="removed"||n.kind==="external") ? "6 4" : "", opacity: st==="removed"?.75:1}, g);
+    if(n.kind==="store") el("path", {d:"M"+r.x+","+(r.y+8)+" h"+r.w, stroke: sc||base, "stroke-width":1, opacity:.6}, g);
+    el("rect", {x:r.x, y:r.y+8, width:4, height:r.h-16, rx:2, fill: sc||base}, g);
+    const tl = wrap(n.label, Math.floor(r.w/9.4));
+    const sl = wrap(n.sub, Math.floor(r.w/6.9)).slice(0, Math.max(1, Math.floor((r.h-16-tl.length*19)/15)));
+    const total = tl.length*19 + sl.length*15;
+    let y = r.cy - total/2 + 15;
+    for(const s of tl){ const t = el("text", {class:"ntitle", x:r.cx, y, "text-anchor":"middle"}, g); t.textContent = s; if(st==="removed") t.setAttribute("text-decoration","line-through"); y += 19; }
+    for(const s of sl){ const t = el("text", {class:"nsub", x:r.cx, y:y-2, "text-anchor":"middle"}, g); t.textContent = s; y += 15; }
+    const p = [...state.path, n.id];
+    const kids = (n.children?.nodes||[]).filter(k=>!isHidden([...p, k.id])).length;
+    if(reviewed.has(p.join("/"))){ g.setAttribute("opacity", .45); const t = el("text", {x:r.x+10, y:r.y-6, "font-size":11, fill:css("--add"), "font-weight":600}, g); t.textContent = "✓ reviewed"; }
+    if(kids && st!=="removed"){ const bx = r.x+r.w-40, by = r.y-13; const gb = el("g", {class:"open"}, g); el("title", {}, gb).textContent = "Open: "+kids+" parts inside"; el("rect", {x:bx, y:by, width:48, height:26, rx:13, fill: sc||base}, gb); const t = el("text", {class:"badge", x:bx+24, y:by+17.5, "text-anchor":"middle"}, gb); t.textContent = "▸ "+kids; gb.addEventListener("click", ev=>{ ev.stopPropagation(); zoomInto(n); }); }
+    if(inner && st!=="removed"){ const bx = r.x-8, by = r.y-9; el("rect", {x:bx, y:by, width:Math.max(56, 14+String(inner).length*7+44), height:18, rx:9, fill: css("--chg")}, g); const t = el("text", {class:"badge", x:bx+8, y:by+13}, g); t.textContent = inner+" inside"; }
+    if(n.findings?.length && state.mode==="current"){ const t = el("text", {x:r.x+10, y:r.y+r.h-6, "font-size":10, fill:css("--del")}, g); t.textContent = "● " + n.findings.length; }
+    const key = noteKey(p), talk = (threads[key]||[]).length + pending.filter(q=>q.el===key).length;
+    if(talk){ const t = el("text", {x:r.x+r.w-10, y:r.y+r.h-6, "font-size":10, fill:css("--module"), "text-anchor":"end"}, g); t.textContent = "✎ " + talk; }
+    g.addEventListener("mouseenter", ()=>{ highlight(n.id); preview(x); });
+    g.addEventListener("mouseleave", ()=>highlight(null));
+    g.addEventListener("click", ev=>{ ev.stopPropagation(); select({node:n.id}); });
+    g.addEventListener("dblclick", ev=>{ ev.stopPropagation(); if(kids && st!=="removed") zoomInto(n); });
+    if(state.sel?.node===n.id) g.classList.add("sel");
+  }
+  if(ghost){ const gx = ghost.x*SX - W/2, gy = ghost.y*SY - H/2 - 16; const t = el("text", {x:gx, y:gy, fill:css("--del"), "font-size":14, "font-weight":650}, gN); t.textContent = "Removed in the proposal"; el("line", {x1:gx, y1:gy-34, x2:gx+Math.max(600, Math.min(gone.length, 4)*250*SX), y2:gy-34, stroke:"#e5c3c0", "stroke-dasharray":"4 4"}, gN); grow(gx, gy-20, 10, 10); }
+  const pad = 40;
+  const target = nodes.length ? [minx-pad, miny-pad, Math.max(400,maxx-minx+2*pad), Math.max(300,maxy-miny+2*pad)] : [0,0,800,500];
+  if(animateFrom){ animate(animateFrom, target); } else { animId++; setVB(target); }
+  viewBox = target;
+  renderChrome();
+  renderPanel();
+}
+function setVB(v){ svg.setAttribute("viewBox", v.join(" ")); }
+let animId = 0;
+function animate(from, to, ms=260, done){
+  const id = ++animId, t0 = performance.now();
+  let ended = false;
+  const end = () => { if(ended) return; ended = true; if(id===animId) setVB(to); done?.(); };
+  const step = now => { if(id!==animId || ended) return; const k = Math.min(1,(now-t0)/ms), e = 1-Math.pow(1-k,3); setVB(from.map((v,i)=>v+(to[i]-v)*e)); if(k<1) requestAnimationFrame(step); else end(); };
+  requestAnimationFrame(step);
+  setTimeout(end, ms+80);
+}
+function highlight(id){
+  const linked = new Set([id]);
+  for(const g of svg.querySelectorAll("g.edge")){ const on = !id || g.dataset.from===id || g.dataset.to===id; g.classList.toggle("dim", !on); if(id && on){ linked.add(g.dataset.from); linked.add(g.dataset.to); } }
+  for(const g of svg.querySelectorAll("g.node")) g.classList.toggle("dim", !!id && !linked.has(g.dataset.id));
+}
+let zooming = false;
+function zoomInto(n){
+  if(zooming || !levelOf(tree(), [...state.path, n.id])) return;
+  zooming = true;
+  const r = rectOf(n);
+  animate(viewBox, [r.x-20, r.y-20, r.w+40, r.h+40], 200, ()=>{ zooming = false; state.path = [...state.path, n.id]; state.sel = null; writeHash(); render(null); });
+}
+function go(path){ state.path = path; state.sel = null; writeHash(); render(); }
+function select(sel){ state.sel = sel; state.tab = "details"; renderTabs(); renderPanel(); for(const g of svg.querySelectorAll("g.node")) g.classList.toggle("sel", !!sel?.node && g.dataset.id===sel.node); }
+function preview(x){ if(!state.sel && !typing() && state.tab==="details") showDetails(x); }
+
+const foot = $("#navfoot");
+function renderChrome(){
+  $("h1").textContent = S.title;
+  document.title = S.title;
+  $("#mode").style.display = S.proposed ? "" : "none";
+  $("#tabs").style.display = S.proposed ? "" : "none";
+  const crumbs = $("#crumbs"); crumbs.innerHTML = "";
+  const t = tree(); const names = [t.label];
+  let n = t; for(const id of state.path){ n = n.children.nodes.find(x=>x.id===id); names.push(n.label); }
+  names.forEach((nm,i)=>{
+    if(i) crumbs.insertAdjacentHTML("beforeend", '<span class="sep">›</span>');
+    if(i===names.length-1){ const b = document.createElement("b"); b.textContent = nm; crumbs.appendChild(b); }
+    else { const a = document.createElement("a"); a.textContent = nm; a.onclick = ()=>go(state.path.slice(0,i)); crumbs.appendChild(a); }
+  });
+  for(const b of document.querySelectorAll("#mode button")) b.classList.toggle("on", b.dataset.m===state.mode);
+  const total = changesUnder(CUR, PROP);
+  $("#nchanges").textContent = total || "";
+  $("#nchanges").style.display = total ? "" : "none";
+  const sw = (c, t, extra="") => '<span><i style="border-color:'+css(c)+';'+extra+'"></i>'+esc(t)+'</span>';
+  $("#legend").innerHTML = state.mode==="current"
+    ? sw("--module", kindName("module").toLowerCase()) + sw("--part", kindName("part").toLowerCase(), "background:#f6f0fd") + sw("--store", kindName("store").toLowerCase(), "background:#ecf7f7") + sw("--ext", kindName("external").toLowerCase(), "border-style:dashed")
+    : sw("--add", "added") + sw("--chg", "changed") + sw("--del", "removed", "border-style:dashed");
+  renderOutline();
+  foot.classList.toggle("on", state.showReviewed);
+  $("#nrev").textContent = reviewed.size ? "("+reviewed.size+")" : "";
+  refreshBar();
+}
+function renderOutline(){
+  const nav = $("#outline"); nav.innerHTML = "";
+  const walk = (cn, pn, path, depth) => {
+    const deeper = JSON.stringify(state.path)!==JSON.stringify(path);
+    for(const x of diffLevel(cn, pn).nodes){
+      const {n, cur: o} = x;
+      const st = x.st==="same" && o && changesUnder(o, n) ? "inner" : x.st;
+      if(deeper && !n.children?.nodes?.length) continue;
+      const rk = [...path, n.id].join("/");
+      if(isHidden([...path, n.id])) continue;
+      const row = document.createElement("div");
+      row.className = "row" + (st==="removed"?" removed":"") + (reviewed.has(rk)?" rev":"");
+      row.style.paddingLeft = (6+depth*14)+"px";
+      if(JSON.stringify(state.path)===JSON.stringify([...path, n.id])) row.classList.add("here");
+      const color = stColor(st) || (st==="inner" ? "#f1d9a8" : css(COLORS[n.kind]||"--module"));
+      row.innerHTML = '<span class="dot" style="background:'+color+'"></span>';
+      row.appendChild(document.createTextNode((reviewed.has(rk)?"✓ ":"") + n.label));
+      row.title = n.sub || "";
+      row.onclick = () => { if(st==="removed") return; if(n.children?.nodes?.length) go([...path, n.id]); else { go(path); select({node:n.id}); } };
+      nav.appendChild(row);
+      const open = JSON.stringify(state.path.slice(0, path.length+1))===JSON.stringify([...path, n.id]);
+      if(n.children?.nodes?.length && st!=="removed" && open) walk(state.mode==="current"?n:o, state.mode==="current"?null:n, [...path, n.id], depth+1);
     }
-    history.replaceState(null, "", "#" + mode + (sel ? "/" + sel : ""));
-    panel();
-    draw();
-  }
-
-  // ---- notes for the agent, offline: one block to paste into the chat
-  function label(key) {
-    if (key === "page") return "the whole page";
-    const id = key.slice(5);
-    const n = [...S.nodes, ...(S.after?.add || [])].find((x) => x.id === id);
-    return `box \`${id}\` (${n ? n.title : "?"}${n?.file ? ", " + n.file : ""})`;
-  }
-  function exportText() {
-    const by = {};
-    for (const n of unsent()) (by[n.el] ||= []).push(n);
-    const lines = [`# Notes on "${S.title}" (${S.id}, round ${S.round || 0})`, "",
-      "File each note in `threads` under its key with its id, answer it there, and update `after`.", ""];
-    for (const [key, notes] of Object.entries(by)) {
-      lines.push(`## ${label(key)} · key \`${key}\``);
-      for (const t of threads[key] || []) lines.push(`- earlier, ${t.by === "agent" ? "agent" : "me"}: ${t.text.replace(/\n/g, " ")}`);
-      for (const n of notes) lines.push(`- [${n.id}] (seen in ${n.view}) ${n.text.replace(/\n/g, "\n  ")}`);
-      lines.push("");
-    }
-    return lines.join("\n");
-  }
-  function refreshBar() {
-    const left = unsent().length, waiting = pending.length - left;
-    $("#notes-btn").textContent = live && !left
-      ? `Live · the agent reads each note${waiting ? ` (${waiting} waiting)` : ""}`
-      : `Notes for the agent (${left})`;
-  }
-  function toast(t) {
-    const el = $("#toast");
-    el.textContent = t;
-    el.style.display = "block";
-    setTimeout(() => (el.style.display = "none"), 2400);
-  }
-
-  const LEGEND = [["part", "key part"], ["step", "main step"], ["", "module"], ["dot", "worth a look"]];
-  const LEGEND_AFTER = [["chg", "changes"], ["gone", "removed"], ["new", "new"]];
-  function header() {
-    document.title = S.title.replace(/`/g, "");
-    const sw = ([cls, t], extra = "") => `<span class="${extra}"><span class="sw ${cls}"></span>${t}</span>`;
-    $("header").innerHTML = `<h1>${md(S.title)}</h1>
-      ${S.after ? `<span class="switch"><button data-mode="before">Before</button><button data-mode="after">${esc(S.after.label || "After")}</button></span>` : ""}
-      ${S.subtitle ? `<span class="sub">${md(S.subtitle)}</span>` : ""}
-      <span class="legend">${LEGEND.map((x) => sw(x)).join("")}${LEGEND_AFTER.map((x) => sw(x, "after-only")).join("")}
-        <span class="u">━ uses</span><span class="b">┅ used by</span></span>`;
-    document.querySelectorAll(".switch button").forEach((b) => {
-      b.classList.toggle("on", b.dataset.mode === mode);
-      b.onclick = () => { mode = b.dataset.mode; render(); };
-    });
-  }
-
-  document.body.innerHTML = `
-    <header></header>
-    <div class="wrap"><div id="board"><svg id="wires"></svg></div><aside id="panel"></aside></div>
-    <div id="bar"><button class="btn primary" id="notes-btn"></button></div>
-    <dialog id="sheet"><b>Notes for the agent</b>
-      <span class="empty">Copy this and paste it to the agent. It answers each note in place and updates the After view.</span>
-      <pre id="sheet-text"></pre>
-      <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn" id="sheet-close">Close</button><button class="btn primary" id="sheet-copy">Copy</button></div></dialog>
-    <div id="toast"></div>`;
-  $("#board").onclick = () => select(null);
-  $("#notes-btn").onclick = () => {
-    if (!unsent().length) return toast(live ? "The agent already has every note" : "No notes yet: click a box to add one");
-    $("#sheet-text").textContent = exportText();
-    $("#sheet").showModal();
   };
-  $("#sheet-close").onclick = () => $("#sheet").close();
-  $("#sheet-copy").onclick = async () => {
-    const text = $("#sheet-text").textContent;
-    try { await navigator.clipboard.writeText(text); } catch {
-      const ta = document.createElement("textarea"); ta.value = text; document.body.append(ta); ta.select(); document.execCommand("copy"); ta.remove();
+  const top = document.createElement("div"); top.className = "row" + (state.path.length? "" : " here"); top.textContent = tree().label + " (top)"; top.onclick = ()=>go([]); nav.appendChild(top);
+  walk(CUR, state.mode==="current"?null:PROP, [], 1);
+}
+
+function esc(s){ return String(s??"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function md(s){ return esc(s).replace(/\x60([^\x60]+)\x60/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g,"<b>$1</b>"); }
+function findingHTML(o){
+  const tags = (o.checked ? '<span class="tag v">checked</span>' : '<span class="tag">to check</span>') + '<span class="tag">' + esc(o.type||"note") + '</span>';
+  return '<div class="obs '+esc(o.type||"")+'">'+md(o.t)+'<div class="meta">'+tags+(o.ref?' <code>'+esc(o.ref)+'</code>':'')+'</div></div>';
+}
+function noteKey(path){ return path.length ? "node:"+path.join("/") : "page"; }
+function thread(key){
+  const msgs = (threads[key]||[]).map(m=>'<div class="msg '+(m.by==="agent"?"agent":"user")+'"><span class="who">'+(m.by==="agent"?"Agent":"You")+(m.view?" · "+esc(m.view):"")+'</span>'+md(m.text)+'</div>');
+  const mine = pending.filter(n=>n.el===key).map(n=>n.sent
+    ? '<div class="msg pending"><span class="who">You · sent, the agent is on it</span>'+md(n.text)+'</div>'
+    : '<div class="msg pending"><button class="x" data-del="'+esc(n.id)+'" title="Delete">✕</button><span class="who">You · not sent yet</span>'+md(n.text)+'</div>');
+  return '<h3>Notes</h3>'+msgs.join("")+mine.join("")+'<textarea class="note" data-for="'+esc(key)+'" placeholder="A question, a change you want, or a reply…"></textarea><div><button class="btn" data-add="'+esc(key)+'">Add note</button></div>';
+}
+const typing = () => document.activeElement?.matches?.("#panel textarea.note");
+const about = o => (o.files?.length ? '<h3>Files</h3><div class="files">'+o.files.map(f=>'<code>'+esc(f)+'</code>').join("")+'</div>' : '')
+  + (o.desc ? '<h3>What it does</h3><div>'+md(o.desc)+'</div>' : '')
+  + (o.does?.length ? '<ul>'+o.does.map(x=>'<li>'+md(x)+'</li>').join("")+'</ul>' : '');
+
+function renderPanel(){ if(state.tab==="log") renderLog(); else showDetails(resolve(state.sel)); }
+function showDetails(s){
+  const p = $("#panel");
+  const old = p.querySelector("textarea.note");
+  const wasTyping = old && document.activeElement===old;
+  const caret = wasTyping ? [old.selectionStart, old.selectionEnd] : null;
+  if(old) drafts[old.dataset.for] = old.value;
+  const scroll = p.scrollTop;
+  let h;
+  if(!s){
+    const owner = levelOf(tree(), state.path);
+    h = '<div class="kind">'+(state.path.length?"This level":"Overview")+'</div><h2>'+esc(owner.label)+'</h2>';
+    if(owner.sub) h += '<div class="muted">'+md(owner.sub)+'</div>';
+    h += about(owner);
+    if(state.mode==="proposed" && owner.change) h += '<div class="change"><b>Proposed:</b> '+md(owner.change)+'</div>';
+    if(owner.findings?.length) h += '<h3>Findings here ('+owner.findings.length+')</h3>'+owner.findings.map(findingHTML).join("");
+    if(state.path.length) h += '<div>'+reviewBtn(state.path)+'</div>';
+    h += thread(noteKey(state.path));
+    h += '<p class="muted" style="margin-top:18px">Hover a box or arrow for its details. Click a box to select it; click its ▸ number to open it.</p>';
+  } else if(s.e){
+    const e = s.e, lbl = id => (levelOf(tree(), [...state.path, id]) || levelOf(CUR, [...state.path, id]))?.label || id;
+    h = '<div class="kind">Arrow'+(s.st!=="same"?" · "+s.st:"")+'</div><h2>'+esc(lbl(e.from))+' → '+esc(lbl(e.to))+'</h2>';
+    if(e.label) h += '<div>'+md(e.label)+'</div>';
+    if(e.desc) h += '<h3>Details</h3><div>'+md(e.desc)+'</div>';
+    if(e.change && state.mode==="proposed") h += '<div class="change '+s.st+'"><b>Proposed:</b> '+md(e.change)+'</div>';
+    h += '<p class="muted">Arrows take no notes. Write a note on one of its boxes.</p>';
+  } else {
+    const n = s.n, path = [...state.path, n.id];
+    h = '<div class="kind">'+esc(kindName(n.kind))+(s.st&&s.st!=="same"?' · <b style="color:'+stColor(s.st)+'">'+s.st+'</b>':'')+'</div><h2>'+esc(n.label)+'</h2>';
+    if(n.sub) h += '<div class="muted">'+md(n.sub)+'</div>';
+    if(state.mode==="proposed" && (n.change || s.st==="removed")) h += '<div class="change '+s.st+'"><b>Proposed:</b> '+md(n.change || "removed")+'</div>';
+    h += about(n);
+    if(n.findings?.length) h += '<h3>Findings ('+n.findings.length+')</h3>'+n.findings.map(findingHTML).join("");
+    h += '<div>';
+    if(n.children?.nodes?.length && s.st!=="removed") h += '<button class="btn" id="open">Open ▸ '+n.children.nodes.length+' parts</button>';
+    if(s.st!=="removed" && levelOf(tree(), path)) h += reviewBtn(path);
+    h += '</div>';
+    h += thread(noteKey(path));
+  }
+  p.innerHTML = h;
+  for(const b of p.querySelectorAll("[data-rev]")) b.onclick = ()=>toggleReviewed(b.dataset.rev);
+  const ob = $("#open"); if(ob) ob.onclick = ()=>zoomInto(s.n);
+  for(const b of p.querySelectorAll("[data-del]")) b.onclick = ()=>{ pending = pending.filter(n=>n.id!==b.dataset.del); store("notes", pending); render(false); };
+  const ta = p.querySelector("textarea.note");
+  if(!ta){ p.scrollTop = scroll; return; }
+  ta.value = drafts[ta.dataset.for] || "";
+  ta.oninput = () => (drafts[ta.dataset.for] = ta.value);
+  if(wasTyping && old.dataset.for===ta.dataset.for){ ta.focus(); ta.setSelectionRange(...caret); }
+  p.scrollTop = scroll;
+  p.querySelector("[data-add]").onclick = async ev => {
+    const key = ev.currentTarget.dataset.add, text = ta.value.trim();
+    if(!text) return;
+    const note = {id:"n"+Math.random().toString(36).slice(2,7), el:key, view:state.mode, text};
+    if(live){
+      try { note.sent = (await api("/api/notes", {method:"POST", body:JSON.stringify(note)})).ok; } catch {}
+      if(!note.sent) toast("Could not reach the agent's server: kept here, copy it with Notes for the agent");
     }
-    toast("Copied: paste it to the agent");
+    pending.push(note);
+    drafts[key] = "";
+    store("notes", pending);
+    render(false);
   };
-  addEventListener("resize", redraw);
+}
+function renderLog(){
+  const p = $("#panel");
+  const P = S.proposed || {};
+  let h = '<div class="kind">Decisions and open questions</div><h2>Design log</h2>';
+  if(P.summary) h += '<p>'+md(P.summary)+'</p>';
+  if(!P.log?.length) h += '<p class="muted">Nothing yet. As you share notes and questions, each one lands here with what it changed in the proposed view.</p>';
+  for(const x of P.log||[]) h += '<div class="logitem"><div class="d">'+esc(x.date||"")+' · '+esc(x.status||"open")+'</div><b>'+md(x.title||"")+'</b><div>'+md(x.text||"")+'</div></div>';
+  p.innerHTML = h;
+}
+function renderTabs(){ for(const b of document.querySelectorAll("#tabs button")) b.classList.toggle("on", b.dataset.t===state.tab); }
 
-  const [m, ...rest] = location.hash.slice(1).split("/");
-  if (m === "after" && S.after) mode = "after";
-  sel = rest.join("/") || null;
-  render();
+function label(key){
+  if(key==="page") return "the whole page";
+  const path = key.slice(5).split("/"), n = levelOf(CUR, path) || levelOf(PROP, path);
+  return "box `"+path.join("/")+"` ("+(n?n.label:"?")+")";
+}
+function exportText(){
+  const by = {};
+  for(const n of unsent()) (by[n.el] ||= []).push(n);
+  const lines = ['# Notes on "'+S.title+'" ('+S.id+')', "", "File each note in `threads` under its key with its id, answer it there, and put each agreed change in `proposed`.", ""];
+  for(const [key, notes] of Object.entries(by)){
+    lines.push("## "+label(key)+" · key `"+key+"`");
+    for(const t of threads[key]||[]) lines.push("- earlier, "+(t.by==="agent"?"agent":"me")+": "+t.text.replace(/\n/g," "));
+    for(const n of notes) lines.push("- ["+n.id+"] (seen in "+n.view+") "+n.text.replace(/\n/g,"\n  "));
+    lines.push("");
+  }
+  return lines.join("\n");
+}
+function refreshBar(){
+  const left = unsent().length, waiting = pending.length - left;
+  $("#notes-btn").textContent = live && !left ? "Live · the agent reads each note"+(waiting?" ("+waiting+" waiting)":"") : "Notes for the agent ("+left+")";
+}
+let toastTimer;
+function toast(t){ const e = $("#toast"); e.textContent = t; e.style.display = "block"; clearTimeout(toastTimer); toastTimer = setTimeout(()=>e.style.display = "none", 2400); }
 
-  // live mode: each save of the agent redraws the page in place; the page itself never reloads,
-  // so the selection, the scroll and a half-written note survive
-  if (!live) return;
-  (async () => {
-    let version = LIVE.version;
-    for (;;) {
-      let r = null;
-      try { r = await api("/api/spec?since=" + version); } catch {}
-      if (r?.status === 200) {
-        const d = await r.json();
-        version = d.version;
-        absorb(d.spec);
-        render();
-        toast("Updated by the agent");
-      } else if (r?.status === 403) {
-        $("#notes-btn").textContent = "The live server restarted: reload this page";
-        return;
-      } else if (r?.status !== 204) {
-        await new Promise((ok) => setTimeout(ok, 2000)); // server down: try again
-      }
+foot.onclick = () => { state.showReviewed = !state.showReviewed; reviewChanged(); };
+$("#tabs").onclick = e => { const t = e.target.closest("button")?.dataset.t; if(!t) return; state.tab = t; renderTabs(); renderPanel(); };
+$("#mode").onclick = e => { const m = e.target.closest("button")?.dataset.m; if(m) setMode(m); };
+$("#notes-btn").onclick = () => {
+  if(!unsent().length) return toast(live ? "The agent already has every note" : "No notes yet: select a box to add one");
+  $("#sheet-text").textContent = exportText();
+  $("#sheet").showModal();
+};
+$("#sheet-close").onclick = () => $("#sheet").close();
+$("#sheet-copy").onclick = async () => {
+  const text = $("#sheet-text").textContent;
+  try { await navigator.clipboard.writeText(text); } catch { const ta = document.createElement("textarea"); ta.value = text; document.body.append(ta); ta.select(); document.execCommand("copy"); ta.remove(); }
+  toast("Copied: paste it to the agent");
+};
+function setMode(m){ state.mode = m; clampPath(); state.sel = null; writeHash(); render(); }
+svg.addEventListener("click", ()=>select(null));
+document.addEventListener("keydown", e => {
+  if(e.target.closest?.("input, textarea, dialog")) return;
+  if(e.key==="Escape" && state.sel){ select(null); return; }
+  if((e.key==="Escape"||e.key==="Backspace") && state.path.length){ const up = state.path[state.path.length-1]; go(state.path.slice(0,-1)); const n = levelOf(tree(), state.path)?.children?.nodes.find(x=>x.id===up); if(n){ const r = rectOf(n); animate([r.x-20,r.y-20,r.w+40,r.h+40], viewBox); } }
+  else if(e.key==="c") setMode("current"); else if(e.key==="p") setMode("proposed");
+  else if(e.key==="l"){ state.labels = !state.labels; render(false); }
+});
+window.addEventListener("hashchange", ()=>{ readHash(); render(); });
+readHash(); render();
+
+if(!live) return;
+(async () => {
+  let version = LIVE.version;
+  for(;;){
+    let r = null;
+    try { r = await api("/api/spec?since="+version); } catch {}
+    if(r?.status===200){
+      const d = await r.json();
+      version = d.version;
+      absorb(d.spec);
+      clampPath();
+      render(false);
+      toast("Updated by the agent");
+    } else if(r?.status===403){
+      $("#notes-btn").textContent = "The live server restarted: reload this page";
+      return;
+    } else if(r?.status!==204){
+      await new Promise(ok=>setTimeout(ok, 2000));
     }
-  })();
+  }
+})();
 })();
 </script>
 </body>
