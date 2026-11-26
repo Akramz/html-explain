@@ -80,6 +80,8 @@ g.edge:hover path.vis{stroke-width:2.6}
 .nsub{font-size:12.5px;fill:var(--muted)}
 .badge{font-size:10px;fill:#fff;font-weight:600}
 #notes-btn{margin:0 0 0 8px;white-space:nowrap}
+#improve-btn{margin:0;white-space:nowrap}
+.btn:disabled{opacity:.55;cursor:default}
 h3+.msg{margin-top:0}
 .msg{border-radius:8px;padding:6px 9px;margin:6px 0;position:relative}
 .msg .who{display:block;font-size:11px;color:var(--muted)}

@@ -12,6 +12,9 @@ that opens it. Each box has a short plain description, its files, and the agent'
 - **Notes on any box.** Write a question or a change you want on a box or on the page. Each note
   reaches your agent as you post it. The agent answers in the box's thread and updates the
   Proposed view; the page redraws in place, without losing what you are typing.
+- **Improve proposal.** One click at the top right asks the agent for a full pass: it rereads
+  every note, thread and decision, brings the Proposed view up to date and answers on the page.
+  The request goes to the agent that drew the page, so it keeps the whole discussion in mind.
 
 Use it to understand a codebase or one part of it, or to redesign it with your agent, round by
 round, then have the agent build the Proposed view.

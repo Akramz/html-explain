@@ -8,7 +8,7 @@ import { test } from "node:test";
 const runtime = new URL("../plugin/skills/html-explain/runtime/", import.meta.url).pathname;
 const example = new URL("../plugin/skills/html-explain/examples/html-explain.json", import.meta.url).pathname;
 
-test("the live server takes notes only from its own page", async (t) => {
+test("the live server takes notes only from its own page and hands them to the monitor", async (t) => {
   const dir = mkdtempSync(join(tmpdir(), "hx-"));
   const spec = join(dir, "demo.json");
   copyFileSync(example, spec);
@@ -18,7 +18,7 @@ test("the live server takes notes only from its own page", async (t) => {
   const html = await (await fetch(url)).text();
   const token = JSON.parse(html.match(/id="live">([^<]+)</)[1]).token;
   const note = JSON.stringify({ id: "n1", el: "page", view: "current", text: "hello" });
-  const post = (headers) => fetch(url + "api/notes", { method: "POST", body: note, headers });
+  const post = (headers, body = note) => fetch(url + "api/notes", { method: "POST", body, headers });
   assert.equal((await post({})).status, 403);
   assert.equal((await post({ "X-HX-Token": token, Origin: "http://evil.example" })).status, 403);
   assert.equal(existsSync(join(dir, "demo.inbox.jsonl")), false);
@@ -26,6 +26,16 @@ test("the live server takes notes only from its own page", async (t) => {
   const inbox = readFileSync(join(dir, "demo.inbox.jsonl"), "utf8").trim().split("\n");
   assert.equal(inbox.length, 1);
   assert.equal(JSON.parse(inbox[0]).text, "hello");
+  const improve = JSON.stringify({ id: "n2", el: "page", view: "proposed", kind: "improve", text: "Improve the proposal" });
+  assert.equal((await post({ "X-HX-Token": token }, improve)).status, 200);
+  const watch = spawn(process.execPath, [join(runtime, "serve.mjs"), spec, "--watch"]);
+  t.after(() => watch.kill());
+  let out = "";
+  for await (const d of watch.stdout) if ((out += d).split("\n").length > 2) break;
+  assert.deepEqual(out.trim().split("\n"), [
+    "note n1 on page (seen in current): hello",
+    "improve n2 on page (seen in proposed): Improve the proposal",
+  ]);
   const spec0 = await fetch(url + "api/spec?since=0", { headers: { "X-HX-Token": token } });
   const got = await spec0.json();
   assert.equal(got.spec.id, "html-explain");

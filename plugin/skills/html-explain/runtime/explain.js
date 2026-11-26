@@ -27,6 +27,7 @@ function absorb(spec){
 }
 absorb(S);
 const drafts = {};
+let stale = false;
 const unsent = () => pending.filter(n=>!n.sent);
 
 const kindName = k => S.kinds?.[k] || KINDS[k] || k;
@@ -91,6 +92,7 @@ document.body.innerHTML = `
   <div class="toggle" id="mode"><button data-m="current">Current</button><button data-m="proposed">Proposed<span class="n" id="nchanges"></span></button></div>
   <div id="crumbs"></div>
   <div class="legend" id="legend"></div>
+  <button class="btn ghost" id="improve-btn"></button>
   <button class="btn" id="notes-btn"></button>
 </header>
 <main>
@@ -374,14 +376,8 @@ function showDetails(s){
   p.querySelector("[data-add]").onclick = async ev => {
     const key = ev.currentTarget.dataset.add, text = ta.value.trim();
     if(!text) return;
-    const note = {id:"n"+Math.random().toString(36).slice(2,7), el:key, view:state.mode, text};
-    if(live){
-      try { note.sent = (await api("/api/notes", {method:"POST", body:JSON.stringify(note)})).ok; } catch {}
-      if(!note.sent) toast("Could not reach the agent's server: kept here, copy it with Notes for the agent");
-    }
-    pending.push(note);
+    await post({el:key, view:state.mode, text});
     drafts[key] = "";
-    store("notes", pending);
     render(false);
   };
 }
@@ -408,14 +404,31 @@ function exportText(){
   for(const [key, notes] of Object.entries(by)){
     lines.push("## "+label(key)+" · key `"+key+"`");
     for(const t of threads[key]||[]) lines.push("- earlier, "+(t.by==="agent"?"agent":"me")+": "+t.text.replace(/\n/g," "));
-    for(const n of notes) lines.push("- ["+n.id+"] (seen in "+n.view+") "+n.text.replace(/\n/g,"\n  "));
+    for(const n of notes) lines.push("- ["+n.id+"] ("+(n.kind==="improve"?"improve request, ":"")+"seen in "+n.view+") "+n.text.replace(/\n/g,"\n  "));
     lines.push("");
   }
   return lines.join("\n");
 }
 function refreshBar(){
-  const left = unsent().length, waiting = pending.length - left;
-  $("#notes-btn").textContent = live && !left ? "Live · the agent reads each note"+(waiting?" ("+waiting+" waiting)":"") : "Notes for the agent ("+left+")";
+  const left = unsent().length, waiting = pending.length - left, imp = improving();
+  $("#notes-btn").textContent = stale ? "The live server restarted: reload this page" : live && !left ? "Live · the agent reads each note"+(waiting?" ("+waiting+" waiting)":"") : "Notes for the agent ("+left+")";
+  $("#improve-btn").disabled = stale || !!imp;
+  $("#improve-btn").textContent = !imp ? "✦ Improve proposal" : imp.sent ? "Improving…" : "Improve proposal · queued";
+}
+async function post(note){
+  note.id = "n"+Math.random().toString(36).slice(2,7);
+  pending.push(note);
+  if(live){
+    try { note.sent = (await api("/api/notes", {method:"POST", body:JSON.stringify(note)})).ok; } catch {}
+    if(!note.sent) toast("Could not reach the agent's server: kept here, copy it with Notes for the agent");
+  }
+  store("notes", pending);
+}
+const improving = () => pending.find(n=>n.kind==="improve");
+async function improve(){
+  if(improving()) return;
+  await post({el:"page", view:state.mode, kind:"improve", text:"Improve the proposal: use every note, thread and decision so far."});
+  render(false);
 }
 let toastTimer;
 function toast(t){ const e = $("#toast"); e.textContent = t; e.style.display = "block"; clearTimeout(toastTimer); toastTimer = setTimeout(()=>e.style.display = "none", 2400); }
@@ -423,6 +436,7 @@ function toast(t){ const e = $("#toast"); e.textContent = t; e.style.display = "
 foot.onclick = () => { state.showReviewed = !state.showReviewed; reviewChanged(); };
 $("#tabs").onclick = e => { const t = e.target.closest("button")?.dataset.t; if(!t) return; state.tab = t; renderTabs(); renderPanel(); };
 $("#mode").onclick = e => { const m = e.target.closest("button")?.dataset.m; if(m) setMode(m); };
+$("#improve-btn").onclick = improve;
 $("#notes-btn").onclick = () => {
   if(!unsent().length) return toast(live ? "The agent already has every note" : "No notes yet: select a box to add one");
   $("#sheet-text").textContent = exportText();
@@ -455,12 +469,14 @@ if(!live) return;
     if(r?.status===200){
       const d = await r.json();
       version = d.version;
+      const was = improving();
       absorb(d.spec);
       clampPath();
       render(false);
-      toast("Updated by the agent");
+      toast(was && !improving() ? "The agent improved the proposal: see its answer in the page notes" : "Updated by the agent");
     } else if(r?.status===403){
-      $("#notes-btn").textContent = "The live server restarted: reload this page";
+      stale = true;
+      refreshBar();
       return;
     } else if(r?.status!==204){
       await new Promise(ok=>setTimeout(ok, 2000));

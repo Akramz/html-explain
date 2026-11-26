@@ -32,7 +32,7 @@ if (values.watch) {
     const all = existsSync(inbox) ? readFileSync(inbox, "utf8").split("\n").filter(Boolean) : [];
     for (const raw of all.slice(seen)) {
       const n = JSON.parse(raw);
-      console.log(`note ${n.id} on ${n.el} (seen in ${n.view}): ${n.text.replace(/\s*\n\s*/g, " / ")}`);
+      console.log(`${n.kind} ${n.id} on ${n.el} (seen in ${n.view}): ${n.text.replace(/\s*\n\s*/g, " / ")}`);
     }
     if (all.length > seen) writeFileSync(cursor, String((seen = all.length)));
   };
@@ -86,7 +86,8 @@ if (values.watch) {
       try {
         const n = await json(req);
         if (!n.id || !n.el || !n.text) throw new Error("id, el and text are required");
-        appendFileSync(inbox, JSON.stringify({ id: n.id, el: n.el, view: n.view, text: n.text }) + "\n");
+        const kind = n.kind === "improve" ? "improve" : "note";
+        appendFileSync(inbox, JSON.stringify({ id: n.id, el: n.el, view: n.view, kind, text: n.text }) + "\n");
         return send(res, 200, "application/json", '{"ok":true}');
       } catch (e) {
         return send(res, 400, "text/plain", String(e.message || e));

@@ -17,7 +17,8 @@ changes inside each box. The **Design log** tab lists every decision.
 
 The user writes notes on any box or on the page. In live mode each note reaches you the moment
 it is posted; you answer it in the box's thread and update the Proposed view, and the page
-redraws in place.
+redraws in place. The **Improve proposal** button at the top right asks you for one full pass
+over the proposal with everything said so far.
 
 The focus sets what to draw: a whole repository (the default, with no argument), a package, or
 a question such as "how a request reaches the database".
@@ -82,8 +83,9 @@ HTML file, and the user pastes notes to you with **Notes for the agent**.
 2. **Watch for notes.** Arm a Monitor with `node <skill dir>/runtime/serve.mjs <name>.json --watch`,
    a description such as "html-explain notes on <name>", and the longest timeout. Each event
    line is one note: `note <id> on <key> (seen in <view>): <text>`. The key is `page` or
-   `node:<path>`, the ids from the top level down (`node:tools/read`). When the monitor expires,
-   arm it again with the same command; it never repeats a note.
+   `node:<path>`, the ids from the top level down (`node:tools/read`). A line that starts with
+   `improve` instead of `note` is a click on **Improve proposal**: do an improve pass (below).
+   When the monitor expires, arm it again with the same command; it never repeats a note.
 3. **Act on each note as it arrives,** without waiting to be asked, as in a review round
    (below). Then run `build.mjs`; fix any error at once (the server skips a spec that fails the
    check). Several notes in one event are one batch.
@@ -94,7 +96,7 @@ HTML file, and the user pastes notes to you with **Notes for the agent**.
    `<name>.inbox.jsonl` and `<name>.inbox.cursor` then.
 
 A pasted block starts with `# Notes on "<title>"` and lists the same ids and keys. Treat it like
-a batch of live notes.
+a batch of live notes. A note marked `(improve request, …)` asks for an improve pass.
 
 ## Each review round
 
@@ -122,6 +124,26 @@ For every note:
 Then rebuild, and reply in chat with the outcome: what you changed, what you disagree with, and
 any decision the user must make. Keep `root` true to the code as it is now; only `proposed`
 holds changes.
+
+## Improve pass
+
+An improve request asks you to bring the whole Proposed view up to date, not to answer one note.
+
+1. **Gather everything.** Read the whole spec again: every thread, every log entry and every
+   finding. Recall what the user said about this design in chat too, not only on the page.
+2. **Put each agreed change in `ops`** and follow it through every level, as in a review round.
+3. **Settle conflicts.** Where two rounds disagree, the newest word from the user wins. Drop ops
+   that a later round undid, and merge ops that repeat each other.
+4. **Fill the gaps:** a changed box with no `change` sentence, a box or `desc` that still tells
+   the old story, an arrow that still points at a removed box, a log entry with no op.
+5. **Log it.** Add one entry, "N · Improve pass", status `proposed`, that lists what you changed.
+   Never undo a `decided` entry; if you think one is wrong, say so in your answer.
+6. Rewrite `proposed.summary`.
+7. **Answer on the page.** File the request in `threads.page` with its id, `by: "user"`, then
+   your answer: a short list of what changed and any decision the user must make. The button
+   stays on "Improving…" until that id is in `threads`.
+
+Then rebuild. In chat, say one line.
 
 ## Building the Proposed view
 
