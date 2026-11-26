@@ -107,7 +107,7 @@ For every note:
 2. **File it in `threads`** under its key: the user's note with its `id`, `by: "user"`, the
    `view` and the `text`, then your answer with `by: "agent"`. The page drops a note from the
    user's pending list once its id is in `threads`, so copy the id exactly.
-3. **Answer, then act on it.** A question gets a plain answer in a few sentences. A change the
+3. **Answer, then act on it.** A question gets a short, plain answer (see Writing). A change the
    user wants goes into `proposed`, with no arguing it away; if you see a problem with it, say
    so in the thread and still draw it.
 4. **Update `proposed`** (see `references/spec.md`).
@@ -159,4 +159,5 @@ To review the built system later, fold the proposal into `root`: apply the ops, 
 
 - Plain, simple English, active voice. Short sentences.
 - Name things the way the code and the user name them; explain a term before you lean on it.
-- In threads, lead with the answer. Two to five sentences is usually enough.
+- In threads, keep answers short and simple, in natural American English: lead with the answer,
+  use everyday words, skip jargon and filler. One to three sentences is usually enough.
