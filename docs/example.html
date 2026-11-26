@@ -43,7 +43,12 @@ nav .row.here{background:#e4eaf7;font-weight:600}
 nav .row .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
 nav .row.removed{text-decoration:line-through;color:var(--muted)}
 #stage{position:relative;overflow:hidden}
-svg{width:100%;height:100%;display:block}
+svg{width:100%;height:100%;display:block;cursor:grab;touch-action:none}
+svg.panning,svg.panning *{cursor:grabbing !important}
+#zoom{position:absolute;top:10px;right:12px;display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:#fff}
+#zoom button{border:0;background:#fff;padding:4px 10px;font:inherit;cursor:pointer;color:var(--ink);min-width:30px}
+#zoom button+button{border-left:1px solid var(--line)}
+#zoom button:hover{background:#f1f3f5}
 .fade{animation:fade .28s ease-out}
 @keyframes fade{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:none}}
 #hint{position:absolute;left:12px;bottom:10px;font-size:12px;color:var(--muted);background:rgba(246,247,249,.9);padding:4px 8px;border-radius:6px}
@@ -252,7 +257,8 @@ document.body.innerHTML = `
 <main>
   <nav><div id="outline"></div><div id="navfoot"><span class="sw"></span><span>Show reviewed <span id="nrev"></span></span></div></nav>
   <section id="stage"><svg id="svg"></svg>
-    <div id="hint">Click a box to select it · click its ▸ number (or double-click the box) to open it · Esc clears the selection, then goes up · C / P switch views · L hides arrow labels</div></section>
+    <div id="zoom"><button data-z="in" title="Zoom in (+)">+</button><button data-z="out" title="Zoom out (−)">−</button><button data-z="fit" title="Fit to screen (0)">Fit</button></div>
+    <div id="hint">Click a box to select it · click its ▸ number (or double-click the box) to open it · Esc clears the selection, then goes up · C / P switch views · L hides arrow labels · scroll or + / − zooms, drag pans, 0 fits</div></section>
   <aside>
     <div class="tabs" id="tabs"><button data-t="details" class="on">Details</button><button data-t="log">Design log</button></div>
     <div id="panel"></div>
@@ -373,12 +379,23 @@ function render(animateFrom){
   if(ghost){ const gx = ghost.x*SX - W/2, gy = ghost.y*SY - H/2 - 16; const t = el("text", {x:gx, y:gy, fill:css("--del"), "font-size":14, "font-weight":650}, gN); t.textContent = "Removed in the proposal"; el("line", {x1:gx, y1:gy-34, x2:gx+Math.max(600, Math.min(gone.length, 4)*250*SX), y2:gy-34, stroke:"#e5c3c0", "stroke-dasharray":"4 4"}, gN); grow(gx, gy-20, 10, 10); }
   const pad = 40;
   const target = nodes.length ? [minx-pad, miny-pad, Math.max(400,maxx-minx+2*pad), Math.max(300,maxy-miny+2*pad)] : [0,0,800,500];
-  if(animateFrom){ animate(animateFrom, target); } else { animId++; setVB(target); }
+  if(animateFrom===false && zoomed && view){}
+  else { zoomed = false; if(animateFrom) animate(animateFrom, target); else { animId++; setVB(target); } }
   viewBox = target;
   renderChrome();
   renderPanel();
 }
-function setVB(v){ svg.setAttribute("viewBox", v.join(" ")); }
+let view = null, zoomed = false;
+function setVB(v){ view = v; svg.setAttribute("viewBox", v.join(" ")); }
+function toSVG(x, y){ const p = svg.createSVGPoint(); p.x = x; p.y = y; return p.matrixTransform(svg.getScreenCTM().inverse()); }
+function zoomAt(k, p){
+  if(!view || !viewBox) return;
+  p ??= {x: view[0]+view[2]/2, y: view[1]+view[3]/2};
+  const w = Math.min(viewBox[2]*4, Math.max(viewBox[2]/10, view[2]/k)), f = view[2]/w;
+  animId++; zoomed = true;
+  setVB([p.x-(p.x-view[0])/f, p.y-(p.y-view[1])/f, view[2]/f, view[3]/f]);
+}
+function fit(){ zoomed = false; animate(view, viewBox, 200); }
 let animId = 0;
 function animate(from, to, ms=260, done){
   const id = ++animId, t0 = performance.now();
@@ -398,7 +415,7 @@ function zoomInto(n){
   if(zooming || !levelOf(tree(), [...state.path, n.id])) return;
   zooming = true;
   const r = rectOf(n);
-  animate(viewBox, [r.x-20, r.y-20, r.w+40, r.h+40], 200, ()=>{ zooming = false; state.path = [...state.path, n.id]; state.sel = null; writeHash(); render(null); });
+  animate(view, [r.x-20, r.y-20, r.w+40, r.h+40], 200, ()=>{ zooming = false; state.path = [...state.path, n.id]; state.sel = null; writeHash(); render(null); });
 }
 function go(path){ state.path = path; state.sel = null; writeHash(); render(); }
 function select(sel){ state.sel = sel; state.tab = "details"; renderTabs(); renderPanel(); for(const g of svg.querySelectorAll("g.node")) g.classList.toggle("sel", !!sel?.node && g.dataset.id===sel.node); }
@@ -604,12 +621,29 @@ $("#sheet-copy").onclick = async () => {
 };
 function setMode(m){ state.mode = m; clampPath(); state.sel = null; writeHash(); render(); }
 svg.addEventListener("click", ()=>select(null));
+svg.addEventListener("wheel", e => { e.preventDefault(); zoomAt(Math.exp(-e.deltaY*(e.ctrlKey ? .01 : .002)), toSVG(e.clientX, e.clientY)); }, {passive:false});
+let drag = null, dragged = false;
+svg.addEventListener("pointerdown", e => { if(e.button===0 && view) drag = {x:e.clientX, y:e.clientY, v:view, s:svg.getScreenCTM().a, moved:false}; });
+svg.addEventListener("pointermove", e => {
+  if(!drag) return;
+  const dx = e.clientX-drag.x, dy = e.clientY-drag.y;
+  if(!drag.moved && Math.hypot(dx, dy) < 4) return;
+  if(!drag.moved){ drag.moved = true; svg.setPointerCapture(e.pointerId); svg.classList.add("panning"); }
+  animId++; zoomed = true;
+  setVB([drag.v[0]-dx/drag.s, drag.v[1]-dy/drag.s, drag.v[2], drag.v[3]]);
+});
+const endDrag = () => { if(drag?.moved){ dragged = true; setTimeout(()=>dragged = false, 0); } drag = null; svg.classList.remove("panning"); };
+svg.addEventListener("pointerup", endDrag);
+svg.addEventListener("pointercancel", endDrag);
+svg.addEventListener("click", e => { if(dragged) e.stopImmediatePropagation(); }, true);
+$("#zoom").onclick = e => { const z = e.target.closest("button")?.dataset.z; if(z==="in") zoomAt(1.25); else if(z==="out") zoomAt(.8); else if(z==="fit") fit(); };
 document.addEventListener("keydown", e => {
   if(e.target.closest?.("input, textarea, dialog")) return;
   if(e.key==="Escape" && state.sel){ select(null); return; }
   if((e.key==="Escape"||e.key==="Backspace") && state.path.length){ const up = state.path[state.path.length-1]; go(state.path.slice(0,-1)); const n = levelOf(tree(), state.path)?.children?.nodes.find(x=>x.id===up); if(n){ const r = rectOf(n); animate([r.x-20,r.y-20,r.w+40,r.h+40], viewBox); } }
   else if(e.key==="c") setMode("current"); else if(e.key==="p") setMode("proposed");
   else if(e.key==="l"){ state.labels = !state.labels; render(false); }
+  else if(e.key==="+"||e.key==="=") zoomAt(1.25); else if(e.key==="-") zoomAt(.8); else if(e.key==="0") fit();
 });
 window.addEventListener("hashchange", ()=>{ readHash(); render(); });
 readHash(); render();

@@ -38,7 +38,8 @@ The page is built by a small Node script, so you need [Node.js](https://nodejs.o
 ```
 
 1. The agent reads the code, writes a spec and opens the page. Click a box to select it; click
-   its ▸ number (or double-click it) to open it. Esc goes back up; C and P switch views.
+   its ▸ number (or double-click it) to open it. Esc goes back up; C and P switch views. Scroll
+   or use + and − to zoom, drag to pan, and press 0 (or Fit) to see the whole level again.
 2. Leave notes on any box. The page is served live from your machine: each note reaches the
    agent as soon as you add it.
 3. The agent answers each note in its thread and draws the agreed changes in the Proposed view.
